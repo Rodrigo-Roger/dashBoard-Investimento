@@ -666,6 +666,7 @@ function renderPagamentosEEstornos(scope, metasRef) {
       if (ehNoPeriodoKPI) estornosMesKPI += Math.abs(ei.valor);
     });
 
+
     if (tbPay) {
       cron.forEach((p, i) => {
         const ehMesSelecionado =
