@@ -101,29 +101,21 @@ function getScopeVendas(scope) {
 }
 
 function getPeriodoInterval() {
-  const hoje = new Date();
-  const fimPadrao = new Date(
-    hoje.getFullYear(),
-    hoje.getMonth(),
-    hoje.getDate() + 1,
-    0,
-    0,
-    0,
-    0
-  );
-
-  if (state.periodo === "personalizado" && state.dataInicio && state.dataFim) {
-    const inicio = parseISO(state.dataInicio);
-    const fimPersonalizado = new Date(parseISO(state.dataFim));
-    fimPersonalizado.setDate(fimPersonalizado.getDate() + 1);
-    if (inicio && fimPersonalizado) {
-      return { inicio, fim: fimPersonalizado };
-    }
-  }
-  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1, 0, 0, 0, 0);
-  return { inicio, fim: fimPadrao };
+  const hoje = new Date();
+  if (state.periodo === "personalizado" && state.dataInicio && state.dataFim) {
+    const inicio = parseISO(state.dataInicio);
+    const fimPersonalizado = new Date(parseISO(state.dataFim));
+    fimPersonalizado.setDate(fimPersonalizado.getDate() + 1);
+    if (inicio && fimPersonalizado) {
+      return { inicio, fim: fimPersonalizado };
+    }
+  }
+  
+  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1, 0, 0, 0, 0);
+  const fimPadrao = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1, 0, 0, 0, 0); 
+  
+  return { inicio, fim: fimPadrao };
 }
-
 function filtrarVendasPorPeriodo(vendas) {
   const { inicio, fim } = getPeriodoInterval();
   if (!inicio || !fim) return vendas;
@@ -178,26 +170,27 @@ function cronogramaComissaoVenda(venda, comissaoVenda) {
 
   for (let i = 1; i <= 6; i++) {
     const when = dataComissaoParcela(venda, i);
-    let status = "agendado";
+    let status = "agendado"; 
 
-    if (cancelAt) {
+    if (cancelAt && pagasCliente < 5) {
       if (when >= cancelAt) {
-        status = pagasCliente >= 5 ? "agendado" : "cancelado";
-        if (status === "agendado" && when <= today) status = "pago";
+        status = "cancelado";
       } else {
+        const esperadas = expectedClientePagasAte(venda, when);
+        const inadimplente = pagasCliente < Math.min(esperadas, venda.parcelas);
+
         if (when <= today) {
-          const esperadas = expectedClientePagasAte(venda, when);
-          const inadimplente =
-            pagasCliente < Math.min(esperadas, venda.parcelas);
-          status = inadimplente && pagasCliente < 5 ? "inadimplente" : "pago";
+          status = inadimplente ? "inadimplente" : "pago";
         } else {
-          status = "agendado";
+          status = "agendado"; 
         }
       }
-    } else {
+    } 
+    else {
       if (when <= today) {
         const esperadas = expectedClientePagasAte(venda, when);
         const inadimplente = pagasCliente < Math.min(esperadas, venda.parcelas);
+
         if (inadimplente && pagasCliente < 5) {
           status = "inadimplente";
         } else {
@@ -248,7 +241,7 @@ function gerarEstornosPosCancelamento(venda, cronograma) {
     estornos.push({
       data: d,
       status: "estorno",
-      valor: pagasAntes[0].valor,
+      valor: pagasAntes[i].valor,
       cliente: venda.cliente,
       dataVenda: venda.data,
     });
@@ -269,7 +262,6 @@ function getComissaoPagaCount(vendaVisual) {
 
   if (!vendaReal) return 0;
 
-  // A comissão é uma porcentagem do valor total. O valor aqui não importa, apenas o status.
   const comissaoDeReferencia = 1;
 
   if (
