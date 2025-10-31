@@ -31,25 +31,29 @@
             <label for="filtro-vendedor">Vendedor:</label>
             <select id="filtro-vendedor"></select>
           </div>
-          <div class="header-filters">
+          <div class="header-filters" style="display: flex; align-items: center; gap: 15px;">
             <div class="filter-group">
-                <label for="periodo">Período:</label>
-                <select id="periodo">
-                    <option value="mensal">Mês Atual</option>
-                    <option value="personalizado">Personalizado</option> </select>
+              <label for="periodo">Período:</label>
+              <select id="periodo">
+                <option value="mensal">Mês Atual</option>
+                <option value="personalizado">Personalizado</option> 
+              </select>
             </div>
           </div>
 
-      <div id="custom-range" style="display: none; margin-top: 10px;">
-          <div class="filter-group">
-              <label for="data-inicio">Início:</label>
-              <input type="date" id="data-inicio" value="">
-          </div>
-          <div class="filter-group" style="margin-left: 10px;">
-              <label for="data-fim">Fim:</label>
-              <input type="date" id="data-fim" value="">
-          </div>
-      </div>
+        <div id="custom-range" style="display: flex; align-items: center; gap: 10px;">
+            <div class="filter-group">
+                <label for="data-inicio">Início:</label>
+                <input type="date" id="data-inicio" value="">
+            </div>
+            <div class="filter-group" style="margin-left: 10px;">
+                <label for="data-fim">Fim:</label>
+                <input type="date" id="data-fim" value="">
+            </div>
+            <button id="btn-buscar-kpi" class="btn-aplicar">
+                  Buscar
+            </button>
+        </div>
         </div>
       </div>
 
@@ -214,12 +218,17 @@
         </div>
         <div class="card" style="margin-top:18px">
           <div class="filter-group" style="display: flex; justify-content: space-between; align-items: center;">
-            <h3>Cronograma de Comissões</h3>
-            
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <label for="filtro-cronograma">Visualizar Mês:</label>
-                <select id="filtro-cronograma">
-                </select>
+          <h3>Cronograma de Comissões</h3>
+            <div id="custom-date-fields" style="display: flex; align-items: center; gap: 15px;">
+                
+                <label for="data-inicio-cronograma">Início:</label>
+                <input type="date" id="data-inicio-cronograma" />
+                
+                <label for="data-fim-cronograma">Fim:</label>
+                <input type="date" id="data-fim-cronograma" />
+                
+                <button id="aplicar-filtro-cronograma">Aplicar</button>
+                
             </div>
           </div>
           <table>

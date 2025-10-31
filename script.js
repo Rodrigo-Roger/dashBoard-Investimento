@@ -29,6 +29,8 @@ const state = {
   dataInicio: null,
   dataFim: null,
   filtroCronograma: null,
+  dataInicioCronograma: null,
+  dataFimCronograma: null,
 };
 
 function save() {
@@ -223,17 +225,17 @@ function gerarEstornosPosCancelamento(venda, cronograma) {
   const pagasCliente = Number(venda.pagas || 0);
   if (pagasCliente >= 5) return estornos;
 
-  const cancelAt = parseISO(venda.cancelamento); // Pega as parcelas que foram PAGAS ao vendedor ANTES da data de cancelamento
+  const cancelAt = parseISO(venda.cancelamento); 
   const pagasAntes = cronograma.filter(
     (p) => p.status === "pago" && p.data < cancelAt
-  ); // Se o vendedor recebeu comissão antes do cancelamento, gera estorno
-  if (pagasAntes.length === 0) return estornos; // Data do primeiro estorno (próximo dia 10 após o cancelamento)
+  );
+  if (pagasAntes.length === 0) return estornos; 
 
   const start = new Date(cancelAt);
   if (start.getDate() > DIA_PAGAMENTO) {
     start.setMonth(start.getMonth() + 1);
   }
-  start.setDate(DIA_PAGAMENTO); // Gera um estorno para cada parcela de comissão que foi paga (pagasAntes)
+  start.setDate(DIA_PAGAMENTO);
 
   for (let i = 0; i < pagasAntes.length; i++) {
     const d = new Date(start);
@@ -460,34 +462,99 @@ function renderEstornoActions(vendasEscopo) {
   estornoDiv.appendChild(btn);
   container.appendChild(estornoDiv);
 }
+function showCustomDateInputs(show) {
+    const container = document.getElementById("custom-date-fields");
+    if (container) {
+        container.style.display = show ? "flex" : "none";
+    }
+}
 
 function generateMonthOptions() {
   const sel = document.getElementById("filtro-cronograma");
   if (!sel) return;
 
   sel.innerHTML = "";
-  const hoje = new Date();
-  const mesAtual = hoje.getMonth();
-  const anoAtual = hoje.getFullYear();
-  for (let i = -12; i <= 12; i++) {
-    const d = new Date(anoAtual, mesAtual + i, 1);
-    const mes = d.getMonth();
-    const ano = d.getFullYear();
-    const value = `${ano}-${mes}`;
-    const opt = document.createElement("option");
-    opt.value = value;
-    opt.textContent = d.toLocaleString("pt-BR", {
-      month: "long",
-      year: "numeric",
-    });
-    sel.appendChild(opt);
-  }
+
+  const optPersonalizado = document.createElement("option");
+  optPersonalizado.value = "personalizado"; 
+  optPersonalizado.textContent = "Período Personalizado...";
+  sel.appendChild(optPersonalizado);
+  
+  state.filtroCronograma = "personalizado";
+  
   sel.value = state.filtroCronograma;
+
   sel.onchange = (e) => {
     state.filtroCronograma = e.target.value;
     save();
-    calcular(getScopeFromUI());
+
+    showCustomDateInputs(true); 
+   
   };
+  
+  showCustomDateInputs(true);
+}
+function getCronogramaInterval() {
+    const hoje = new Date();
+    
+    // CASO 1: Filtro Personalizado (Modo Ativo)
+    if (state.filtroCronograma === 'personalizado' && state.dataInicioCronograma && state.dataFimCronograma) {
+        const inicio = parseISO(state.dataInicioCronograma);
+        
+        // Adiciona 1 dia para INCLUIR o dia final
+        const fimPersonalizado = new Date(parseISO(state.dataFimCronograma));
+        fimPersonalizado.setDate(fimPersonalizado.getDate() + 1); 
+        
+        if (inicio && fimPersonalizado) {
+             return { inicio, fim: fimPersonalizado }; // Mantenha o return aqui
+        }
+    } 
+    
+    // CASO 2: Padrão (Fallback)
+    const ano = hoje.getFullYear();
+    const mes = hoje.getMonth(); 
+
+    const inicioPadrao = new Date(ano, mes, 1, 0, 0, 0, 0);
+    const fimPadrao = new Date(ano, mes + 1, 1, 0, 0, 0, 0); 
+    
+    return { inicio: inicioPadrao, fim: fimPadrao };
+} 
+function setupCustomCronogramaEvents() {
+    // Certifique-se de que os IDs dos inputs e botão correspondam ao seu HTML
+    const dataInicioInput = document.getElementById("data-inicio-cronograma");
+    const dataFimInput = document.getElementById("data-fim-cronograma");
+    const aplicarBtn = document.getElementById("aplicar-filtro-cronograma");
+
+    if (!aplicarBtn || !dataInicioInput || !dataFimInput) {
+        return;
+    }
+
+    aplicarBtn.onclick = () => {
+        const dataInicio = dataInicioInput.value;
+        const dataFim = dataFimInput.value;
+        
+        if (!dataInicio || !dataFim) {
+            alert("Por favor, selecione as datas de início e fim.");
+            return;
+        }
+
+        // 1. Salva as novas datas no estado (usadas pela getCronogramaInterval)
+        // OBS: Você deve ter estas variáveis no seu 'state'
+        state.dataInicioCronograma = dataInicio;
+        state.dataFimCronograma = dataFim;
+        
+        // 2. Salva e Recalcula
+        save();
+        calcular(getScopeFromUI()); // Dispara a filtragem
+    };
+    
+    // Pré-preenche (se houver datas salvas ao carregar)
+    if (state.dataInicioCronograma) {
+        dataInicioInput.value = state.dataInicioCronograma;
+    }
+    if (state.dataFimCronograma) {
+        dataFimInput.value = state.dataFimCronograma;
+    }
 }
 
 function renderTopDropdowns() {
@@ -527,10 +594,10 @@ function renderTopDropdowns() {
 function renderVendasTable(vendasEscopo) {
   const tbody = document.getElementById("tbody-vendas");
   if (!tbody) return;
-  tbody.innerHTML = ""; // Filtra apenas vendas ATIVAS no período
+  tbody.innerHTML = "";
 
-  const vendasAtivasPeriodo = vendasEscopo.filter((v) => v.status === "ativo"); // Adiciona todas as vendas CANCELADAS
-  const vendasCanceladas = vendasEscopo.filter((v) => v.status === "cancelado"); // Lista final para exibição
+  const vendasAtivasPeriodo = vendasEscopo.filter((v) => v.status === "ativo"); 
+  const vendasCanceladas = vendasEscopo.filter((v) => v.status === "cancelado"); 
   const vendasParaExibir = [
     ...filtrarVendasPorPeriodo(vendasAtivasPeriodo),
     ...vendasCanceladas,
@@ -606,7 +673,7 @@ function renderPagamentosEEstornos(scope, metasRef) {
   if (tbPay) tbPay.innerHTML = "";
   if (tbEst) tbEst.innerHTML = "";
 
-  const [anoFiltro, mesFiltro] = state.filtroCronograma.split("-").map(Number);
+  const intervaloCronograma = getCronogramaInterval(); 
   const vendasEscopo = getScopeVendas(scope);
   const totalVendasDoEscopo = totalVendido(
     vendasEscopo.filter((v) => v.status !== "cancelado")
@@ -661,10 +728,10 @@ function renderPagamentosEEstornos(scope, metasRef) {
 
     if (tbPay) {
       cron.forEach((p, i) => {
-        const ehMesSelecionado =
-          p.data.getMonth() === mesFiltro && p.data.getFullYear() === anoFiltro;
+        const ehNoPeriodoSelecionado =
+          p.data >= intervaloCronograma.inicio && p.data < intervaloCronograma.fim;
 
-        if (!ehMesSelecionado) {
+        if (!ehNoPeriodoSelecionado) {
           return;
         }
 
@@ -717,10 +784,9 @@ function renderPagamentosEEstornos(scope, metasRef) {
 
     if (tbEst && est.length) {
       est.forEach((ei) => {
-        const ehMesSelecionado =
-          ei.data.getMonth() === mesFiltro &&
-          ei.data.getFullYear() === anoFiltro;
-        if (!ehMesSelecionado) return;
+        const ehNoPeriodoSelecionado =
+          ei.data >= intervaloCronograma.inicio && ei.data < intervaloCronograma.fim;
+        if (!ehNoPeriodoSelecionado) return;
         somaEstornos += ei.valor;
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -788,7 +854,6 @@ function renderPagamentosEEstornos(scope, metasRef) {
         if (realIndex >= 0) {
           const vendaNoState = vendOwner.vendas[realIndex];
           if (!vendaNoState.cronograma_manual) {
-            // Calcula o cronograma automático para inicializar o manual
             const cronAuto = cronogramaComissaoVenda(vendaNoState, 1);
             vendaNoState.cronograma_manual = cronAuto.map((p) =>
               p.status === "suspenso" ? "inadimplente" : p.status
@@ -927,75 +992,97 @@ function saveCfgFromInputs() {
 }
 
 function attachUIEvents() {
-  document.querySelectorAll(".nav-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document
-        .querySelectorAll(".nav-btn")
-        .forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      const view = btn.getAttribute("data-view");
-      document
-        .querySelectorAll(".view")
-        .forEach((v) => (v.style.display = "none"));
-      document.getElementById("view-" + view).style.display = "block";
-    });
-  });
+  document.querySelectorAll(".nav-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document
+        .querySelectorAll(".nav-btn")
+        .forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const view = btn.getAttribute("data-view");
+      document
+        .querySelectorAll(".view")
+        .forEach((v) => (v.style.display = "none"));
+      document.getElementById("view-" + view).style.display = "block";
+    });
+  });
 
-  const periodoSelect = document.getElementById("periodo");
-  const customRangeDiv = document.getElementById("custom-range");
-  const updatePeriodoUI = (p) => {
-    const dataInicioInput = document.getElementById("data-inicio");
-    const dataFimInput = document.getElementById("data-fim");
-    if (p === "personalizado") {
-      if (customRangeDiv) customRangeDiv.style.display = "flex";
-      if (dataInicioInput) dataInicioInput.value = state.dataInicio || "";
-      if (dataFimInput) dataFimInput.value = state.dataFim || "";
-    } else {
-      if (customRangeDiv) customRangeDiv.style.display = "none";
-    }
-  };
-  if (periodoSelect)
-    periodoSelect.addEventListener("change", (e) => {
-      state.periodo = e.target.value;
-      updatePeriodoUI(state.periodo);
-      save();
-      calcular(getScopeFromUI());
-    });
-  updatePeriodoUI(state.periodo);
-  const dataInicioInput = document.getElementById("data-inicio");
-  const dataFimInput = document.getElementById("data-fim");
-  const handleDateChange = () => {
-    if (dataInicioInput) state.dataInicio = dataInicioInput.value;
-    if (dataFimInput) state.dataFim = dataFimInput.value;
-    save();
-    if (state.periodo === "personalizado") {
-      calcular(getScopeFromUI());
-    }
-  };
-  if (dataInicioInput)
-    dataInicioInput.addEventListener("change", handleDateChange);
-  if (dataFimInput) dataFimInput.addEventListener("change", handleDateChange);
-  document.getElementById("filtro-vendedor").addEventListener("change", (e) => {
-    calcular(e.target.value);
-  });
+  const periodoSelect = document.getElementById("periodo");
+  const customRangeDiv = document.getElementById("custom-range");
 
-  document.getElementById("btn-add").addEventListener("click", () => {
-    const vend = byId(state.ativo);
-    if (!vend) {
-      alert("Nenhum vendedor ativo. Ative um perfil nas Configurações.");
-      return;
-    }
+  const updatePeriodoUI = (p) => {
+    const dataInicioInput = document.getElementById("data-inicio");
+    const dataFimInput = document.getElementById("data-fim");
+    if (p === "personalizado") {
+      if (customRangeDiv) customRangeDiv.style.display = "flex";
+      if (dataInicioInput) dataInicioInput.value = state.dataInicio || "";
+      if (dataFimInput) dataFimInput.value = state.dataFim || "";
+    } else {
+      if (customRangeDiv) customRangeDiv.style.display = "none";
+    }
+  };
+  if (periodoSelect)
+    periodoSelect.addEventListener("change", (e) => {
+      const customRangeDiv = document.getElementById("custom-range");
+        if (customRangeDiv) {
+            customRangeDiv.style.display =
+                e.target.value === "personalizado" ? "flex" : "none";}
+    });
+  updatePeriodoUI(state.periodo);
 
-    const cliente = document.getElementById("cliente").value.trim();
-    const valor = Number(document.getElementById("valor").value || 0);
-    const data = document.getElementById("data").value || "";
+  const dataInicioInput = document.getElementById("data-inicio");
+  const dataFimInput = document.getElementById("data-fim");
+  const handleDateChange = () => {
 
-    if (!valor || valor <= 0) {
+    if (dataInicioInput) state.dataInicio = dataInicioInput.value;
+    if (dataFimInput) state.dataFim = dataFimInput.value;
+
+    save();
+  };
+  if (dataInicioInput)
+    dataInicioInput.addEventListener("change", handleDateChange);
+  if (dataFimInput) dataFimInput.addEventListener("change", handleDateChange);
+  document.getElementById("filtro-vendedor").addEventListener("change", (e) => {
+ 
+  });
+  document.getElementById("btn-buscar-kpi").addEventListener("click", () => {
+        const novoVendedorId = document.getElementById("filtro-vendedor").value;
+        const novoPeriodo = document.getElementById("periodo").value;
+
+        state.ativo = novoVendedorId; 
+        state.periodo = novoPeriodo;
+
+        if (state.periodo === "personalizado") {
+            state.dataInicio = document.getElementById("data-inicio").value;
+            state.dataFim = document.getElementById("data-fim").value;
+        }
+        save();
+        calcular(novoVendedorId);
+      });
+
+  setupCustomCronogramaEvents(); 
+
+  document.getElementById("btn-add").addEventListener("click", () => {
+    const vend = byId(state.ativo);
+    if (!vend) {
+      alert("Nenhum vendedor ativo. Ative um perfil nas Configurações.");
+      return;
+    }
+
+    const cliente = document.getElementById("cliente").value.trim();
+    const valor = Number(document.getElementById("valor").value || 0);
+    const data = document.getElementById("data").value || "";
+
+    if (!valor || valor <= 0) {
       alert("Informe um valor válido.");
       return;
     }
     if (!data) {
       alert("Informe a data da 1ª parcela do cliente.");
+      return;
+    }
+
+    if (!cliente) {
+      alert("Informe o nome do cliente.");
       return;
     }
 

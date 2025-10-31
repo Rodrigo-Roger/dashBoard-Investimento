@@ -289,3 +289,26 @@ tbody td:last-child {
   font-size: 12px;
   color: var(--ms-muted);
 }
+#aplicar-filtro-cronograma{
+        border: none; 
+        border-radius: 5px; 
+        padding: 8px 15px; 
+        cursor: pointer; 
+        font-weight: bold;
+        transition: background-color 0.3s ease; /* Transição suave */
+}
+
+.header-filters {
+    display: flex;
+    align-items: center; 
+    gap: 15px; 
+}
+.btn-aplicar{
+        height: 30px;
+        border: none; 
+        border-radius: 5px; 
+        padding: 10px 10px; 
+        cursor: pointer; 
+        font-weight: bold;
+        transition: background-color 0.3s ease;
+}
