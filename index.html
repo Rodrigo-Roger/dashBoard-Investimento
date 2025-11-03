@@ -19,6 +19,7 @@
         <div class="nav-btn" data-view="pagamentos">💰 Pagamentos</div>
         <div class="nav-btn" data-view="estornos">↩️ Estornos</div>
         <div class="nav-btn" data-view="config">⚙️ Configurações</div>
+        <div class="nav-btn" data-view="inadimplencia">🔄 Inadimplência</div>
       </nav>
       <div class="nav-foot">Versão multi-vendedor • Montseguro 2025</div>
     </aside>
@@ -264,6 +265,28 @@
           </div>
         </div>
       </section>
+      <section id="view-inadimplencia" class="view" style="display: none;">
+    <div class="card">
+        <h2>🔄 Gerenciar Inadimplentes e Recuperação</h2>
+
+        <div class="filter-group">
+            <label for="select-inadimplente">Cliente Inadimplente:</label>
+            <select id="select-inadimplente"></select>
+        </div>
+
+        <div id="recuperacao-campos" style="display: none; margin-top: 15px; align-items: flex-end; gap: 15px;">
+            <div class="filter-group">
+                <label for="data-recuperacao">Data de Retorno ao Pagamento:</label>
+                <input type="date" id="data-recuperacao" />
+            </div>
+
+            <button id="btn-remarcar-pagamentos" class="btn-aplicar">
+                Remarcar Pagamentos
+            </button>
+        </div>
+        <p id="info-inadimplencia" style="margin-top: 10px; color: #dc3545;"></p>
+    </div>
+</section>
 
       <section id="view-config" class="view" style="display:none">
         <div class="card">
@@ -345,7 +368,6 @@
             • O vendedor <b>Angelo</b> (Pleno) é criado automaticamente como perfil padrão.
           </div>
         </div>
-      </section>
     </main>
   </div>
 <script src="script.js"></script>

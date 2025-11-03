@@ -103,20 +103,26 @@ function getScopeVendas(scope) {
 }
 
 function getPeriodoInterval() {
-  const hoje = new Date();
-  if (state.periodo === "personalizado" && state.dataInicio && state.dataFim) {
-    const inicio = parseISO(state.dataInicio);
-    const fimPersonalizado = new Date(parseISO(state.dataFim));
-    fimPersonalizado.setDate(fimPersonalizado.getDate() + 1);
-    if (inicio && fimPersonalizado) {
-      return { inicio, fim: fimPersonalizado };
-    }
-  }
-  
-  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1, 0, 0, 0, 0);
-  const fimPadrao = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1, 0, 0, 0, 0); 
-  
-  return { inicio, fim: fimPadrao };
+  const hoje = new Date();
+  if (state.periodo === "personalizado" && state.dataInicio && state.dataFim) {
+    const inicio = parseISO(state.dataInicio);
+    const fimPersonalizado = new Date(parseISO(state.dataFim));
+    fimPersonalizado.setDate(fimPersonalizado.getDate() + 1);
+    if (inicio && fimPersonalizado) {
+      return { inicio, fim: fimPersonalizado };
+    }
+  }
+  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1, 0, 0, 0, 0);
+  const fimPadrao = new Date(
+    hoje.getFullYear(),
+    hoje.getMonth() + 1,
+    1,
+    0,
+    0,
+    0,
+    0
+  );
+  return { inicio, fim: fimPadrao };
 }
 function filtrarVendasPorPeriodo(vendas) {
   const { inicio, fim } = getPeriodoInterval();
@@ -171,8 +177,21 @@ function cronogramaComissaoVenda(venda, comissaoVenda) {
   const parcelas = [];
 
   for (let i = 1; i <= 6; i++) {
-    const when = dataComissaoParcela(venda, i);
-    let status = "agendado"; 
+    let when;
+    const parcelaIdx = i - 1;
+    const dataRemarcadaStr = venda.datas_remarcadas
+      ? venda.datas_remarcadas[parcelaIdx]
+      : null;
+
+    if (dataRemarcadaStr) {
+
+      when = parseISO(dataRemarcadaStr);
+    } else {
+
+      when = dataComissaoParcela(venda, i);
+    }
+
+    let status = "agendado";
 
     if (cancelAt && pagasCliente < 5) {
       if (when >= cancelAt) {
@@ -184,11 +203,10 @@ function cronogramaComissaoVenda(venda, comissaoVenda) {
         if (when <= today) {
           status = inadimplente ? "inadimplente" : "pago";
         } else {
-          status = "agendado"; 
+          status = "agendado";
         }
       }
-    } 
-    else {
+    } else {
       if (when <= today) {
         const esperadas = expectedClientePagasAte(venda, when);
         const inadimplente = pagasCliente < Math.min(esperadas, venda.parcelas);
@@ -210,7 +228,7 @@ function cronogramaComissaoVenda(venda, comissaoVenda) {
     }
 
     parcelas.push({
-      data: when,
+      data: when, 
       status: statusFinal,
       valor: comissaoVenda / 6,
     });
@@ -225,11 +243,11 @@ function gerarEstornosPosCancelamento(venda, cronograma) {
   const pagasCliente = Number(venda.pagas || 0);
   if (pagasCliente >= 5) return estornos;
 
-  const cancelAt = parseISO(venda.cancelamento); 
+  const cancelAt = parseISO(venda.cancelamento);
   const pagasAntes = cronograma.filter(
     (p) => p.status === "pago" && p.data < cancelAt
   );
-  if (pagasAntes.length === 0) return estornos; 
+  if (pagasAntes.length === 0) return estornos;
 
   const start = new Date(cancelAt);
   if (start.getDate() > DIA_PAGAMENTO) {
@@ -463,10 +481,10 @@ function renderEstornoActions(vendasEscopo) {
   container.appendChild(estornoDiv);
 }
 function showCustomDateInputs(show) {
-    const container = document.getElementById("custom-date-fields");
-    if (container) {
-        container.style.display = show ? "flex" : "none";
-    }
+  const container = document.getElementById("custom-date-fields");
+  if (container) {
+    container.style.display = show ? "flex" : "none";
+  }
 }
 
 function generateMonthOptions() {
@@ -476,77 +494,80 @@ function generateMonthOptions() {
   sel.innerHTML = "";
 
   const optPersonalizado = document.createElement("option");
-  optPersonalizado.value = "personalizado"; 
+  optPersonalizado.value = "personalizado";
   optPersonalizado.textContent = "Período Personalizado...";
   sel.appendChild(optPersonalizado);
-  
+
   state.filtroCronograma = "personalizado";
-  
+
   sel.value = state.filtroCronograma;
 
   sel.onchange = (e) => {
     state.filtroCronograma = e.target.value;
     save();
 
-    showCustomDateInputs(true); 
-   
+    showCustomDateInputs(true);
   };
-  
+
   showCustomDateInputs(true);
 }
 function getCronogramaInterval() {
-    const hoje = new Date();
+  const hoje = new Date();
 
-    if (state.filtroCronograma === 'personalizado' && state.dataInicioCronograma && state.dataFimCronograma) {
-        const inicio = parseISO(state.dataInicioCronograma);
-        const fimPersonalizado = new Date(parseISO(state.dataFimCronograma));
-        fimPersonalizado.setDate(fimPersonalizado.getDate() + 1); 
-        
-        if (inicio && fimPersonalizado) {
-             return { inicio, fim: fimPersonalizado };
-        }
-    } 
-    const ano = hoje.getFullYear();
-    const mes = hoje.getMonth(); 
+  if (
+    state.filtroCronograma === "personalizado" &&
+    state.dataInicioCronograma &&
+    state.dataFimCronograma
+  ) {
+    const inicio = parseISO(state.dataInicioCronograma);
+    const fimPersonalizado = new Date(parseISO(state.dataFimCronograma));
+    fimPersonalizado.setDate(fimPersonalizado.getDate() + 1);
 
-    const inicioPadrao = new Date(ano, mes, 1, 0, 0, 0, 0);
-    const fimPadrao = new Date(ano, mes + 1, 1, 0, 0, 0, 0); 
-    
-    return { inicio: inicioPadrao, fim: fimPadrao };
-} 
+    if (inicio && fimPersonalizado) {
+      return { inicio, fim: fimPersonalizado };
+    }
+  }
+  const ano = hoje.getFullYear();
+  const mes = hoje.getMonth();
+
+  const inicioPadrao = new Date(ano, mes, 1, 0, 0, 0, 0);
+  const fimPadrao = new Date(ano, mes + 1, 1, 0, 0, 0, 0);
+
+  return { inicio: inicioPadrao, fim: fimPadrao };
+}
 function setupCustomCronogramaEvents() {
-    const dataInicioInput = document.getElementById("data-inicio-cronograma");
-    const dataFimInput = document.getElementById("data-fim-cronograma");
-    const aplicarBtn = document.getElementById("aplicar-filtro-cronograma");
+  const dataInicioInput = document.getElementById("data-inicio-cronograma");
+  const dataFimInput = document.getElementById("data-fim-cronograma");
+  const aplicarBtn = document.getElementById("aplicar-filtro-cronograma");
 
-    if (!aplicarBtn || !dataInicioInput || !dataFimInput) {
-      console.warn("⚠️ Inputs/botão não encontrados no DOM");
-        return;
-    }
+  if (!aplicarBtn || !dataInicioInput || !dataFimInput) {
+    console.warn("⚠️ Inputs/botão não encontrados no DOM");
+    return;
+  }
 
-    aplicarBtn.onclick = () => {
-        const dataInicio = dataInicioInput.value;
-        const dataFim = dataFimInput.value;
-        
-        if (!dataInicio || !dataFim) {
-            alert("Por favor, selecione as datas de início e fim.");
-            return;
-        }
-        state.filtroCronograma = 'personalizado';
-        state.dataInicioCronograma = dataInicio;
-        state.dataFimCronograma = dataFim;
+  aplicarBtn.onclick = () => {
+    const dataInicio = dataInicioInput.value;
+    const dataFim = dataFimInput.value;
 
-        save();
-        calcular(getScopeFromUI()); 
-    };
-    
-    // Pré-preenche (se houver datas salvas ao carregar)
-    if (state.dataInicioCronograma) {
-        dataInicioInput.value = state.dataInicioCronograma;
+    if (!dataInicio || !dataFim) {
+      alert("Por favor, selecione as datas de início e fim.");
+      return;
     }
-    if (state.dataFimCronograma) {
-        dataFimInput.value = state.dataFimCronograma;
-    }
+    state.filtroCronograma = "personalizado";
+    state.dataInicioCronograma = dataInicio;
+    state.dataFimCronograma = dataFim;
+
+    save();
+    calcular(getScopeFromUI());
+  };
+
+  // Pré-preenche (se houver datas salvas ao carregar)
+  if (state.dataInicioCronograma) {
+    dataInicioInput.value = state.dataInicioCronograma;
+  }
+  if (state.dataFimCronograma) {
+    dataFimInput.value = state.dataFimCronograma;
+  }
 }
 
 function renderTopDropdowns() {
@@ -588,8 +609,8 @@ function renderVendasTable(vendasEscopo) {
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  const vendasAtivasPeriodo = vendasEscopo.filter((v) => v.status === "ativo"); 
-  const vendasCanceladas = vendasEscopo.filter((v) => v.status === "cancelado"); 
+  const vendasAtivasPeriodo = vendasEscopo.filter((v) => v.status === "ativo");
+  const vendasCanceladas = vendasEscopo.filter((v) => v.status === "cancelado");
   const vendasParaExibir = [
     ...filtrarVendasPorPeriodo(vendasAtivasPeriodo),
     ...vendasCanceladas,
@@ -665,7 +686,7 @@ function renderPagamentosEEstornos(scope, metasRef) {
   if (tbPay) tbPay.innerHTML = "";
   if (tbEst) tbEst.innerHTML = "";
 
-  const intervaloCronograma = getCronogramaInterval(); 
+  const intervaloCronograma = getCronogramaInterval();
   const vendasEscopo = getScopeVendas(scope);
   const totalVendasDoEscopo = totalVendido(
     vendasEscopo.filter((v) => v.status !== "cancelado")
@@ -717,11 +738,11 @@ function renderPagamentosEEstornos(scope, metasRef) {
       if (ehNoPeriodoKPI) estornosMesKPI += Math.abs(ei.valor);
     });
 
-
     if (tbPay) {
       cron.forEach((p, i) => {
         const ehNoPeriodoSelecionado =
-          p.data >= intervaloCronograma.inicio && p.data < intervaloCronograma.fim;
+          p.data >= intervaloCronograma.inicio &&
+          p.data < intervaloCronograma.fim;
 
         if (!ehNoPeriodoSelecionado) {
           return;
@@ -777,7 +798,8 @@ function renderPagamentosEEstornos(scope, metasRef) {
     if (tbEst && est.length) {
       est.forEach((ei) => {
         const ehNoPeriodoSelecionado =
-          ei.data >= intervaloCronograma.inicio && ei.data < intervaloCronograma.fim;
+          ei.data >= intervaloCronograma.inicio &&
+          ei.data < intervaloCronograma.fim;
         if (!ehNoPeriodoSelecionado) return;
         somaEstornos += ei.valor;
         const tr = document.createElement("tr");
@@ -870,7 +892,6 @@ function renderDashboard(scope) {
     if (vend) cfgRef = vend.cfg || structuredClone(baseCfg);
   }
 
-  // KPI de vendas considera apenas vendas ATIVAS
   const total = totalVendido(
     vendasEscopo.filter((v) => v.status !== "cancelado")
   );
@@ -983,88 +1004,240 @@ function saveCfgFromInputs() {
   save();
 }
 
+function getClientesInadimplentes() {
+  const inadimplentes = [];
+  const hoje = new Date();
+
+  state.vendedores.forEach((vendedor) => {
+    vendedor.vendas.forEach((venda) => {
+      if (venda.status === "cancelado") return;
+
+      const cronograma = cronogramaComissaoVenda(venda, 1);
+
+      const parcelasAtrasadas = cronograma.filter(
+        (p) => p.status === "inadimplente" && p.data < hoje
+      );
+
+      if (parcelasAtrasadas.length > 0) {
+        inadimplentes.push({
+          idVenda: venda.id,
+          idVendedor: vendedor.id,
+          nomeVendedor: vendedor.nome,
+          cliente: venda.cliente,
+          parcelas: parcelasAtrasadas,
+        });
+      }
+    });
+  });
+  return inadimplentes;
+}
+
+function setupInadimplenciaView() {
+  const selectInadimplente = document.getElementById("select-inadimplente");
+  const dataRecuperacaoInput = document.getElementById("data-recuperacao");
+  const btnRemarcar = document.getElementById("btn-remarcar-pagamentos");
+  const camposRecuperacao = document.getElementById("recuperacao-campos");
+  const infoInadimplencia = document.getElementById("info-inadimplencia");
+
+  if (!selectInadimplente || !btnRemarcar) return;
+
+  function carregarClientesInadimplentes() {
+    const inadimplentes = getClientesInadimplentes();
+    selectInadimplente.innerHTML =
+      '<option value="">Selecione a venda...</option>';
+
+    inadimplentes.forEach((vendaInadimplente) => {
+      const opt = document.createElement("option");
+      opt.value = vendaInadimplente.idVenda;
+      opt.textContent = `${vendaInadimplente.cliente} (${vendaInadimplente.parcelas.length} parcelas atrasadas) - Vendedor: ${vendaInadimplente.nomeVendedor}`;
+      selectInadimplente.appendChild(opt);
+    });
+
+    if (inadimplentes.length === 0) {
+      infoInadimplencia.textContent =
+        "✅ Nenhum cliente inadimplente no momento.";
+      camposRecuperacao.style.display = "none";
+    } else {
+      infoInadimplencia.textContent = `🚨 ${inadimplentes.length} venda(s) com pagamentos pendentes!`;
+    }
+  }
+
+  selectInadimplente.onchange = () => {
+    const vendaId = selectInadimplente.value;
+    if (vendaId) {
+      camposRecuperacao.style.display = "flex";
+    } else {
+      camposRecuperacao.style.display = "none";
+    }
+  };
+
+  btnRemarcar.onclick = () => {
+    const vendaId = selectInadimplente.value;
+    const dataVolta = dataRecuperacaoInput.value;
+
+    if (!vendaId || !dataVolta) {
+      alert("Selecione o cliente e a data de retorno ao pagamento.");
+      return;
+    }
+
+    remarcarPagamentos(vendaId, dataVolta);
+    alert("Pagamentos remarcados com sucesso!");
+    carregarClientesInadimplentes();
+    camposRecuperacao.style.display = "none";
+    dataRecuperacaoInput.value = "";
+
+    calcular(getScopeFromUI());
+  };
+
+  carregarClientesInadimplentes();
+}
+
+function remarcarPagamentos(vendaId, dataVoltaPagamento) {
+  let venda;
+
+  for (const v of state.vendedores) {
+    const found = v.vendas.find((vend) => vend.id === vendaId);
+    if (found) {
+      venda = found;
+      break;
+    }
+  }
+
+  if (!venda) {
+    console.error(
+      "ERRO CRÍTICO: Venda não encontrada no estado. O ID pode estar errado ou faltando."
+    );
+    return;
+  }
+
+  let cronogramaManual = venda.cronograma_manual;
+  if (!cronogramaManual) {
+    const cronAuto = cronogramaComissaoVenda(venda, 1);
+    cronogramaManual = cronAuto.map((p) =>
+      p.status === "suspenso" ? "inadimplente" : p.status
+    );
+  }
+
+  const inadimplentesIndices = cronogramaManual
+    .map((status, index) => (status === "inadimplente" ? index : -1))
+    .filter((index) => index !== -1);
+
+  if (inadimplentesIndices.length === 0) {
+    return;
+  }
+
+  if (!venda.datas_remarcadas) {
+    venda.datas_remarcadas = {};
+  }
+
+  const primeiroIndexAReagendar = inadimplentesIndices[0];
+
+  let dataRemarcacaoBase = new Date(dataVoltaPagamento);
+  dataRemarcacaoBase.setDate(DIA_PAGAMENTO);
+
+  const numParcelasTotal = venda.parcelas || 6;
+  const numParcelasRestantes = numParcelasTotal - primeiroIndexAReagendar;
+
+  for (let i = 0; i < numParcelasRestantes; i++) {
+    const parcelaIndex = primeiroIndexAReagendar + i;
+
+    let novaData = new Date(dataRemarcacaoBase);
+
+    novaData.setMonth(novaData.getMonth() + (i + 1));
+    venda.datas_remarcadas[parcelaIndex] = novaData.toISOString().split("T")[0];
+    if (cronogramaManual[parcelaIndex] === "inadimplente") {
+      cronogramaManual[parcelaIndex] = "agendado";
+    }
+  }
+  venda.cronograma_manual = cronogramaManual;
+  save();
+  calcular(getScopeFromUI());
+}
 function attachUIEvents() {
-  document.querySelectorAll(".nav-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document
-        .querySelectorAll(".nav-btn")
-        .forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      const view = btn.getAttribute("data-view");
-      document
-        .querySelectorAll(".view")
-        .forEach((v) => (v.style.display = "none"));
-      document.getElementById("view-" + view).style.display = "block";
-    });
-  });
+  document.querySelectorAll(".nav-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document
+        .querySelectorAll(".nav-btn")
+        .forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const view = btn.getAttribute("data-view");
+      document
+        .querySelectorAll(".view")
+        .forEach((v) => (v.style.display = "none"));
+      document.getElementById("view-" + view).style.display = "block";
+      if (view === "inadimplencia") {
+        setupInadimplenciaView();
+      }
+    });
+  });
 
-  const periodoSelect = document.getElementById("periodo");
-  const customRangeDiv = document.getElementById("custom-range");
+  const periodoSelect = document.getElementById("periodo");
+  const customRangeDiv = document.getElementById("custom-range");
 
-  const updatePeriodoUI = (p) => {
-    const dataInicioInput = document.getElementById("data-inicio");
-    const dataFimInput = document.getElementById("data-fim");
-    if (p === "personalizado") {
-      if (customRangeDiv) customRangeDiv.style.display = "flex";
-      if (dataInicioInput) dataInicioInput.value = state.dataInicio || "";
-      if (dataFimInput) dataFimInput.value = state.dataFim || "";
-    } else {
-      if (customRangeDiv) customRangeDiv.style.display = "none";
-    }
-  };
-  if (periodoSelect)
-    periodoSelect.addEventListener("change", (e) => {
-      const customRangeDiv = document.getElementById("custom-range");
-        if (customRangeDiv) {
-            customRangeDiv.style.display =
-                e.target.value === "personalizado" ? "flex" : "none";}
-    });
-  updatePeriodoUI(state.periodo);
+  const updatePeriodoUI = (p) => {
+    const dataInicioInput = document.getElementById("data-inicio");
+    const dataFimInput = document.getElementById("data-fim");
+    if (p === "personalizado") {
+      if (customRangeDiv) customRangeDiv.style.display = "flex";
+      if (dataInicioInput) dataInicioInput.value = state.dataInicio || "";
+      if (dataFimInput) dataFimInput.value = state.dataFim || "";
+    } else {
+      if (customRangeDiv) customRangeDiv.style.display = "none";
+    }
+  };
+  if (periodoSelect)
+    periodoSelect.addEventListener("change", (e) => {
+      const customRangeDiv = document.getElementById("custom-range");
+      if (customRangeDiv) {
+        customRangeDiv.style.display =
+          e.target.value === "personalizado" ? "flex" : "none";
+      }
+    });
+  updatePeriodoUI(state.periodo);
 
-  const dataInicioInput = document.getElementById("data-inicio");
-  const dataFimInput = document.getElementById("data-fim");
-  const handleDateChange = () => {
+  const dataInicioInput = document.getElementById("data-inicio");
+  const dataFimInput = document.getElementById("data-fim");
+  const handleDateChange = () => {
+    if (dataInicioInput) state.dataInicio = dataInicioInput.value;
+    if (dataFimInput) state.dataFim = dataFimInput.value;
 
-    if (dataInicioInput) state.dataInicio = dataInicioInput.value;
-    if (dataFimInput) state.dataFim = dataFimInput.value;
-
-    save();
-  };
-  if (dataInicioInput)
-    dataInicioInput.addEventListener("change", handleDateChange);
-  if (dataFimInput) dataFimInput.addEventListener("change", handleDateChange);
-  document.getElementById("filtro-vendedor").addEventListener("change", (e) => {
- 
-  });
+    save();
+  };
+  if (dataInicioInput)
+    dataInicioInput.addEventListener("change", handleDateChange);
+  if (dataFimInput) dataFimInput.addEventListener("change", handleDateChange);
+  document
+    .getElementById("filtro-vendedor")
+    .addEventListener("change", (e) => {});
   document.getElementById("btn-buscar-kpi").addEventListener("click", () => {
-        const novoVendedorId = document.getElementById("filtro-vendedor").value;
-        const novoPeriodo = document.getElementById("periodo").value;
+    const novoVendedorId = document.getElementById("filtro-vendedor").value;
+    const novoPeriodo = document.getElementById("periodo").value;
 
-        state.ativo = novoVendedorId; 
-        state.periodo = novoPeriodo;
+    state.ativo = novoVendedorId;
+    state.periodo = novoPeriodo;
 
-        if (state.periodo === "personalizado") {
-            state.dataInicio = document.getElementById("data-inicio").value;
-            state.dataFim = document.getElementById("data-fim").value;
-        }
-        save();
-        calcular(novoVendedorId);
-      });
+    if (state.periodo === "personalizado") {
+      state.dataInicio = document.getElementById("data-inicio").value;
+      state.dataFim = document.getElementById("data-fim").value;
+    }
+    save();
+    calcular(novoVendedorId);
+  });
 
-  setupCustomCronogramaEvents(); 
+  setupCustomCronogramaEvents();
 
-  document.getElementById("btn-add").addEventListener("click", () => {
-    const vend = byId(state.ativo);
-    if (!vend) {
-      alert("Nenhum vendedor ativo. Ative um perfil nas Configurações.");
-      return;
-    }
+  document.getElementById("btn-add").addEventListener("click", () => {
+    const vend = byId(state.ativo);
+    if (!vend) {
+      alert("Nenhum vendedor ativo. Ative um perfil nas Configurações.");
+      return;
+    }
 
-    const cliente = document.getElementById("cliente").value.trim();
-    const valor = Number(document.getElementById("valor").value || 0);
-    const data = document.getElementById("data").value || "";
+    const cliente = document.getElementById("cliente").value.trim();
+    const valor = Number(document.getElementById("valor").value || 0);
+    const data = document.getElementById("data").value || "";
 
-    if (!valor || valor <= 0) {
+    if (!valor || valor <= 0) {
       alert("Informe um valor válido.");
       return;
     }
@@ -1079,12 +1252,15 @@ function attachUIEvents() {
     }
 
     vend.vendas.push({
+      id: crypto.randomUUID(),
       cliente,
       valor,
       data,
       status: "ativo",
       parcelas: 6,
       pagas: 0,
+      datas_remarcadas: {},
+      cronograma_manual: null,
     });
     save();
     document.getElementById("valor").value = "";
@@ -1099,28 +1275,37 @@ function attachUIEvents() {
     if (!vend) return;
     vend.vendas = [
       {
+        id: crypto.randomUUID(), 
         cliente: "Alpha SA",
         valor: 1200000,
         data: "2025-09-05",
         status: "ativo",
         parcelas: 6,
         pagas: 1,
+        datas_remarcadas: {},
+        cronograma_manual: null,
       },
       {
+        id: crypto.randomUUID(),
         cliente: "Delta PJ",
         valor: 600000,
         data: "2025-06-03",
         status: "ativo",
         parcelas: 6,
         pagas: 3,
+        datas_remarcadas: {},
+        cronograma_manual: null,
       },
       {
+        id: crypto.randomUUID(), 
         cliente: "Gamma MEI",
         valor: 300000,
         data: "2025-07-20",
         status: "ativo",
         parcelas: 6,
         pagas: 0,
+        datas_remarcadas: {},
+        cronograma_manual: null,
       },
     ];
     save();
