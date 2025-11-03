@@ -5,7 +5,7 @@ const fmtBRL = (v) =>
   });
 const pct = (v) => `${(v * 100).toFixed(2).replace(".", ",")}%`;
 const parseISO = (s) => (s ? new Date(s + "T00:00:00") : null);
-const DIA_PAGAMENTO = 10;
+const DIA_PAGAMENTO = 1;
 
 const structuredClone = (obj) => JSON.parse(JSON.stringify(obj));
 
@@ -728,7 +728,7 @@ function renderPagamentosEEstornos(scope, metasRef) {
     cron.forEach((p) => {
       const ehNoPeriodoKPI =
         p.data >= periodoKPI.inicio && p.data <= periodoKPI.fim;
-      if (ehNoPeriodoKPI && (p.status === "pago" || p.status === "agendado")) {
+      if (ehNoPeriodoKPI && (p.status === "pago")) {
         comissaoMesKPI += p.valor;
       }
     });
