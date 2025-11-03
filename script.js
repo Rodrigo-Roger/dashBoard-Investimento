@@ -496,21 +496,16 @@ function generateMonthOptions() {
 }
 function getCronogramaInterval() {
     const hoje = new Date();
-    
-    // CASO 1: Filtro Personalizado (Modo Ativo)
+
     if (state.filtroCronograma === 'personalizado' && state.dataInicioCronograma && state.dataFimCronograma) {
         const inicio = parseISO(state.dataInicioCronograma);
-        
-        // Adiciona 1 dia para INCLUIR o dia final
         const fimPersonalizado = new Date(parseISO(state.dataFimCronograma));
         fimPersonalizado.setDate(fimPersonalizado.getDate() + 1); 
         
         if (inicio && fimPersonalizado) {
-             return { inicio, fim: fimPersonalizado }; // Mantenha o return aqui
+             return { inicio, fim: fimPersonalizado };
         }
     } 
-    
-    // CASO 2: Padrão (Fallback)
     const ano = hoje.getFullYear();
     const mes = hoje.getMonth(); 
 
@@ -520,12 +515,12 @@ function getCronogramaInterval() {
     return { inicio: inicioPadrao, fim: fimPadrao };
 } 
 function setupCustomCronogramaEvents() {
-    // Certifique-se de que os IDs dos inputs e botão correspondam ao seu HTML
     const dataInicioInput = document.getElementById("data-inicio-cronograma");
     const dataFimInput = document.getElementById("data-fim-cronograma");
     const aplicarBtn = document.getElementById("aplicar-filtro-cronograma");
 
     if (!aplicarBtn || !dataInicioInput || !dataFimInput) {
+      console.warn("⚠️ Inputs/botão não encontrados no DOM");
         return;
     }
 
@@ -537,15 +532,12 @@ function setupCustomCronogramaEvents() {
             alert("Por favor, selecione as datas de início e fim.");
             return;
         }
-
-        // 1. Salva as novas datas no estado (usadas pela getCronogramaInterval)
-        // OBS: Você deve ter estas variáveis no seu 'state'
+        state.filtroCronograma = 'personalizado';
         state.dataInicioCronograma = dataInicio;
         state.dataFimCronograma = dataFim;
-        
-        // 2. Salva e Recalcula
+
         save();
-        calcular(getScopeFromUI()); // Dispara a filtragem
+        calcular(getScopeFromUI()); 
     };
     
     // Pré-preenche (se houver datas salvas ao carregar)
