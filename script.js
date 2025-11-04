@@ -4,7 +4,7 @@ const fmtBRL = (v) =>
     currency: "BRL",
   });
 const pct = (v) => `${(v * 100).toFixed(2).replace(".", ",")}%`;
-const parseISO = (s) => (s ? new Date(s + "T00:00:00") : null);
+const parseISO = (s) => (s ? new Date(s + "T00:00:00Z") : null);
 const DIA_PAGAMENTO = 1;
 
 const structuredClone = (obj) => JSON.parse(JSON.stringify(obj));
@@ -149,6 +149,7 @@ function aliquotaAplicavel(total, metas) {
 function dataComissaoParcela(venda, i) {
   const start = parseISO(venda.data) || new Date();
   const d = new Date(start);
+  d.setDate(1);
   d.setMonth(d.getMonth() + i);
   d.setDate(DIA_PAGAMENTO);
   return d;
