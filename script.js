@@ -672,300 +672,324 @@ function renderVendasTable(vendasEscopo) {
 }
 
 function renderPagamentosEEstornos(scope, metasRef) {
-  const tbPay = document.getElementById("tbody-pagamentos");
-  const tbEst = document.getElementById("tbody-estornos");
-  const lblEPagos = document.getElementById("pg-pagos");
-  const lblEInad = document.getElementById("pg-inadimplentes");
-  const lblEAgend = document.getElementById("pg-agendados");
-  const lblECanc = document.getElementById("pg-cancelados");
-  const lblEEst = document.getElementById("pg-estornos");
-  const lblELiq = document.getElementById("pg-liquido");
-  const lblNext = document.getElementById("pg-proximo");
-  const lblEstTotal = document.getElementById("estorno-total");
+  const tbPay = document.getElementById("tbody-pagamentos");
+  const tbEst = document.getElementById("tbody-estornos");
+  const lblEPagos = document.getElementById("pg-pagos");
+  const lblEInad = document.getElementById("pg-inadimplentes");
+  const lblEAgend = document.getElementById("pg-agendados");
+  const lblECanc = document.getElementById("pg-cancelados");
+  const lblEEst = document.getElementById("pg-estornos");
+  const lblELiq = document.getElementById("pg-liquido");
+  const lblNext = document.getElementById("pg-proximo");
+  const lblEstTotal = document.getElementById("estorno-total");
 
-  if (tbPay) tbPay.innerHTML = "";
-  if (tbEst) tbEst.innerHTML = "";
+  if (tbPay) tbPay.innerHTML = "";
+  if (tbEst) tbEst.innerHTML = "";
 
-  const intervaloCronograma = getCronogramaInterval();
-  const vendasEscopo = getScopeVendas(scope);
-  const totalVendasDoEscopo = totalVendido(
-    vendasEscopo.filter((v) => v.status !== "cancelado")
-  );
-  const aliqDoEscopo = aliquotaAplicavel(totalVendasDoEscopo, metasRef);
-  const comissaoTotalDoEscopo = totalVendasDoEscopo * aliqDoEscopo;
+  const intervaloCronograma = getCronogramaInterval();
+  const vendasEscopo = getScopeVendas(scope);
+  
+  const ALIQUOTA_BASE_PARA_CRONOGRAMA = metasRef[0].aliq;
 
-  let somaPagos = 0,
-    somaInadimplentes = 0,
-    somaAgendados = 0,
-    somaCancelados = 0,
-    somaEstornos = 0;
+  let somaPagos = 0,
+    somaInadimplentes = 0,
+    somaAgendados = 0,
+    somaCancelados = 0,
+    somaEstornos = 0;
 
-  const hoje = new Date();
-  const mesAtual = hoje.getMonth();
-  const anoAtual = hoje.getFullYear();
+  const hoje = new Date();
+  const mesAtual = hoje.getMonth();
+  const anoAtual = hoje.getFullYear();
 
-  const periodoKPI = getPeriodoInterval();
-  let comissaoMesKPI = 0;
-  let estornosMesKPI = 0;
-
-  vendasEscopo.forEach((v, vIdx) => {
-    let comissaoVenda = 0;
-    if (v.status !== "cancelado") {
-      const peso =
-        totalVendasDoEscopo > 0
-          ? Number(v.valor || 0) / totalVendasDoEscopo
-          : 0;
-      comissaoVenda = comissaoTotalDoEscopo * peso;
-    } else {
-      const comissaoTotalVenda =
-        Number(v.valor || 0) *
-        aliquotaAplicavel(Number(v.valor || 0), metasRef);
-      comissaoVenda = comissaoTotalVenda;
-    }
-    const cron = cronogramaComissaoVenda(v, comissaoVenda);
-    const est = gerarEstornosPosCancelamento(v, cron);
-
-    cron.forEach((p) => {
-      const ehNoPeriodoKPI =
-        p.data >= periodoKPI.inicio && p.data <= periodoKPI.fim;
-      if (ehNoPeriodoKPI && (p.status === "pago")) {
-        comissaoMesKPI += p.valor;
+  const periodoKPI = getPeriodoInterval();
+  let comissaoMesKPI = 0;
+  let estornosMesKPI = 0;
+  
+  const vendasPorMes = {};
+  
+  vendasEscopo.forEach((v) => {
+      const dataVenda = parseISO(v.data); 
+      const mesRef = dataVenda.getFullYear() + "-" + (dataVenda.getMonth() + 1).toString().padStart(2, '0');
+      if (!vendasPorMes[mesRef]) {
+          vendasPorMes[mesRef] = 0;
       }
-    });
-    est.forEach((ei) => {
-      const ehNoPeriodoKPI =
-        ei.data >= periodoKPI.inicio && ei.data <= periodoKPI.fim;
-      if (ehNoPeriodoKPI) estornosMesKPI += Math.abs(ei.valor);
-    });
+      vendasPorMes[mesRef] += Number(v.valor || 0);
+  });
+  
+  const metasBatidasPorMes = {};
+  Object.keys(vendasPorMes).forEach(mesRef => {
+      const totalVendido = vendasPorMes[mesRef];
+      metasBatidasPorMes[mesRef] = aliquotaAplicavel(totalVendido, metasRef);
+  });
 
-    if (tbPay) {
-      cron.forEach((p, i) => {
-        const ehNoPeriodoSelecionado =
-          p.data >= intervaloCronograma.inicio &&
-          p.data < intervaloCronograma.fim;
+  vendasEscopo.forEach((v, vIdx) => {
+    let comissaoVenda = 0;
+    
+    comissaoVenda = Number(v.valor || 0) * ALIQUOTA_BASE_PARA_CRONOGRAMA;
+    
+    const cron = cronogramaComissaoVenda(v, comissaoVenda);
+    const est = gerarEstornosPosCancelamento(v, cron);
+    
+    cron.forEach((p) => {
+      const ehNoPeriodoKPI =
+        p.data >= periodoKPI.inicio && p.data <= periodoKPI.fim;
+      
+      const dataVenda = parseISO(v.data); 
+      const mesCriacaoVenda = dataVenda.getFullYear() + "-" + (dataVenda.getMonth() + 1).toString().padStart(2, '0');
 
-        if (!ehNoPeriodoSelecionado) {
-          return;
+      const metaBatida = metasBatidasPorMes[mesCriacaoVenda] >= ALIQUOTA_BASE_PARA_CRONOGRAMA;
+
+      if (ehNoPeriodoKPI && (p.status === "pago") && metaBatida) {
+        comissaoMesKPI += p.valor;
+      }
+    });
+    
+    est.forEach((ei) => {
+      const ehNoPeriodoKPI =
+        ei.data >= periodoKPI.inicio && ei.data <= periodoKPI.fim;
+      if (ehNoPeriodoKPI) estornosMesKPI += Math.abs(ei.valor);
+    });
+
+    if (tbPay) {
+      cron.forEach((p, i) => {
+        const ehNoPeriodoSelecionado =
+          p.data >= intervaloCronograma.inicio &&
+          p.data < intervaloCronograma.fim;
+
+        if (!ehNoPeriodoSelecionado) {
+          return;
+        }
+        
+        const dataVenda = parseISO(v.data);
+        const mesCriacaoVenda = dataVenda.getFullYear() + "-" + (dataVenda.getMonth() + 1).toString().padStart(2, '0');
+        const metaBatida = metasBatidasPorMes[mesCriacaoVenda] >= ALIQUOTA_BASE_PARA_CRONOGRAMA;
+        
+        let statusParaExibir = p.status;
+        let tagClass = '';
+        
+        if (!metaBatida) {
+            statusParaExibir = "Suspenso (Meta não batida)";
+            tagClass = "tag red";
+        } else {
+            if (p.status === "pago") {
+                somaPagos += p.valor;
+            } else if (p.status === "inadimplente") {
+                somaInadimplentes += p.valor;
+                tagClass = "tag amber";
+            } else if (p.status === "agendado") {
+                somaAgendados += p.valor;
+            } else if (p.status === "cancelado") {
+                somaCancelados += p.valor;
+                tagClass = "tag red";
+            }
         }
 
-        if (p.status === "pago") {
-          somaPagos += p.valor;
-        } else if (p.status === "inadimplente") {
-          somaInadimplentes += p.valor;
-        } else if (p.status === "agendado") {
-          somaAgendados += p.valor;
-        } else if (p.status === "cancelado") {
-          somaCancelados += p.valor;
-        }
-
-        const statusSelect = `
+        const statusSelect = `
             <select class="status-select" data-venda-idx="${vIdx}" data-parcela-idx="${i}">
                 <option value="pago" ${
-          p.status === "pago" ? "selected" : ""
-        }>Pago</option>
+          p.status === "pago" ? "selected" : ""
+        }>Pago</option>
                 <option value="agendado" ${
-          p.status === "agendado" ? "selected" : ""
-        }>Agendado</option>
+          p.status === "agendado" ? "selected" : ""
+        }>Agendado</option>
                 <option value="inadimplente" ${
-          p.status === "inadimplente" ? "selected" : ""
-        }>Inadimplente</option>
+          p.status === "inadimplente" ? "selected" : ""
+        }>Inadimplente</option>
                 <option value="cancelado" ${
-          p.status === "cancelado" ? "selected" : ""
-        }>Cancelado</option>
+          p.status === "cancelado" ? "selected" : ""
+        }>Cancelado</option>
             </select>
         `;
-        const tagClass =
-          p.status === "cancelado"
-            ? "tag red"
-            : p.status === "inadimplente"
-            ? "tag amber"
-            : "";
+        
+        const statusCel = metaBatida ? statusSelect : `<span class="${tagClass}">${statusParaExibir}</span>`;
 
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
           <td>${v.cliente || "-"}</td>
           <td>${p.data.toLocaleDateString("pt-BR", {
-          month: "2-digit",
-          year: "numeric",
-        })}</td>
-          <td>${statusSelect}</td> 
+          month: "2-digit",
+          year: "numeric",
+        })}</td>
+          <td>${statusCel}</td> 
           <td class="valor"><b class="${tagClass}">${fmtBRL(p.valor)}</b></td>
         `;
-        tbPay.appendChild(tr);
-      });
-    }
+        tbPay.appendChild(tr);
+      });
+    }
 
-    if (tbEst && est.length) {
-      est.forEach((ei) => {
-        const ehNoPeriodoSelecionado =
-          ei.data >= intervaloCronograma.inicio &&
-          ei.data < intervaloCronograma.fim;
-        if (!ehNoPeriodoSelecionado) return;
-        somaEstornos += ei.valor;
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
+    if (tbEst && est.length) {
+      est.forEach((ei) => {
+        const ehNoPeriodoSelecionado =
+          ei.data >= intervaloCronograma.inicio &&
+          ei.data < intervaloCronograma.fim;
+        if (!ehNoPeriodoSelecionado) return;
+        somaEstornos += ei.valor;
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
           <td>${ei.cliente || v.cliente || "-"}</td>
           <td>${parseISO(v.cancelamento).toLocaleDateString("pt-BR")}</td> 
           <td>${ei.data.toLocaleDateString("pt-BR")}</td> 
           <td>
-                <span class="tag red">Estorno</span>
-            </td>
+                <span class="tag red">Estorno</span>
+            </td>
           <td class="valor"><b>-${fmtBRL(ei.valor)}</b></td>
         `;
-        tbEst.appendChild(tr);
-      });
-    }
-  });
+        tbEst.appendChild(tr);
+      });
+    }
+  });
 
-  const proximo10 = (() => {
-    const t = new Date();
-    if (t.getDate() > DIA_PAGAMENTO) {
-      t.setMonth(t.getMonth() + 1);
-    }
-    t.setDate(DIA_PAGAMENTO);
-    return t;
-  })();
+  const proximo10 = (() => {
+    const t = new Date();
+    if (t.getDate() > DIA_PAGAMENTO) {
+      t.setMonth(t.getMonth() + 1);
+    }
+    t.setDate(DIA_PAGAMENTO);
+    return t;
+  })();
 
-  if (lblEPagos) lblEPagos.textContent = fmtBRL(somaPagos);
-  if (lblEInad) lblEInad.textContent = fmtBRL(somaInadimplentes);
-  if (lblEAgend) lblEAgend.textContent = fmtBRL(somaAgendados);
-  if (lblECanc) lblECanc.textContent = fmtBRL(somaCancelados);
-  if (lblEEst) lblEEst.textContent = fmtBRL(somaEstornos);
-  if (lblELiq)
-    lblELiq.textContent = fmtBRL(
-      Math.max(0, somaPagos + somaAgendados - somaEstornos)
-    );
-  if (lblNext) lblNext.textContent = proximo10.toLocaleDateString("pt-BR");
-  if (lblEstTotal) lblEstTotal.textContent = fmtBRL(somaEstornos);
-  document.getElementById("comissao-mes").textContent = fmtBRL(comissaoMesKPI);
-  document.getElementById("estornos-mes").textContent = fmtBRL(estornosMesKPI);
+  if (lblEPagos) lblEPagos.textContent = fmtBRL(somaPagos);
+  if (lblEInad) lblEInad.textContent = fmtBRL(somaInadimplentes);
+  if (lblEAgend) lblEAgend.textContent = fmtBRL(somaAgendados);
+  if (lblECanc) lblECanc.textContent = fmtBRL(somaCancelados);
+  if (lblEEst) lblEEst.textContent = fmtBRL(somaEstornos);
+  if (lblELiq)
+    lblELiq.textContent = fmtBRL(
+      Math.max(0, somaPagos + somaAgendados - somaEstornos)
+    );
+  if (lblNext) lblNext.textContent = proximo10.toLocaleDateString("pt-BR");
+  if (lblEstTotal) lblEstTotal.textContent = fmtBRL(somaEstornos);
+  document.getElementById("comissao-mes").textContent = fmtBRL(comissaoMesKPI); 
+  document.getElementById("estornos-mes").textContent = fmtBRL(estornosMesKPI);
 
-  let salarioFixo = 0;
-  if (scope === "todos")
-    salarioFixo = state.vendedores.reduce(
-      (acc, v) => acc + (Number(v.cfg?.fixo) || 0),
-      0
-    );
-  else salarioFixo = Number(byId(scope)?.cfg?.fixo) || 0;
+  let salarioFixo = 0;
+  if (scope === "todos")
+    salarioFixo = state.vendedores.reduce(
+      (acc, v) => acc + (Number(v.cfg?.fixo) || 0),
+      0
+    );
+  else salarioFixo = Number(byId(scope)?.cfg?.fixo) || 0;
 
-  const salarioFinal = salarioFixo + comissaoMesKPI - estornosMesKPI;
+  const salarioFinal = salarioFixo + comissaoMesKPI - estornosMesKPI;
 
-  document.getElementById("salario-fixo").textContent = fmtBRL(salarioFixo);
-  document.getElementById("salario-final").textContent = fmtBRL(salarioFinal);
-  if (tbPay) {
-    tbPay.querySelectorAll(".status-select").forEach((select) => {
-      select.addEventListener("change", (e) => {
-        const novoStatus = e.target.value;
-        const parcelaIdx = parseInt(e.target.dataset.parcelaIdx);
-        const visualIdx = parseInt(e.target.dataset.vendaIdx);
-        const vendaAfetada = vendasEscopo[visualIdx];
-        if (!vendaAfetada) return;
-        const vendOwner = byId(vendaAfetada._owner);
-        const realIndex = vendOwner.vendas.findIndex(
-          (v) =>
-            v.cliente === vendaAfetada.cliente && v.data === vendaAfetada.data
-        );
-        if (realIndex >= 0) {
-          const vendaNoState = vendOwner.vendas[realIndex];
-          if (!vendaNoState.cronograma_manual) {
-            const cronAuto = cronogramaComissaoVenda(vendaNoState, 1);
-            vendaNoState.cronograma_manual = cronAuto.map((p) =>
-              p.status === "suspenso" ? "inadimplente" : p.status
-            );
-          }
-          vendaNoState.cronograma_manual[parcelaIdx] = novoStatus;
-          save();
-          calcular(getScopeFromUI());
-        }
-      });
-    });
-  }
+  document.getElementById("salario-fixo").textContent = fmtBRL(salarioFixo);
+  document.getElementById("salario-final").textContent = fmtBRL(salarioFinal);
+  
+  if (tbPay) {
+    tbPay.querySelectorAll(".status-select").forEach((select) => {
+      select.addEventListener("change", (e) => {
+        const novoStatus = e.target.value;
+        const parcelaIdx = parseInt(e.target.dataset.parcelaIdx);
+        const visualIdx = parseInt(e.target.dataset.vendaIdx);
+        const vendaAfetada = vendasEscopo[visualIdx];
+        if (!vendaAfetada) return;
+        const vendOwner = byId(vendaAfetada._owner);
+        const realIndex = vendOwner.vendas.findIndex(
+          (v) =>
+            v.cliente === vendaAfetada.cliente && v.data === vendaAfetada.data
+        );
+        if (realIndex >= 0) {
+          const vendaNoState = vendOwner.vendas[realIndex];
+          if (!vendaNoState.cronograma_manual) {
+            const cronAuto = cronogramaComissaoVenda(vendaNoState, 1);
+            vendaNoState.cronograma_manual = cronAuto.map((p) =>
+              p.status === "suspenso" ? "inadimplente" : p.status
+            );
+          }
+          vendaNoState.cronograma_manual[parcelaIdx] = novoStatus;
+          save();
+          calcular(getScopeFromUI());
+        }
+      });
+    });
+  }
 }
-
 function renderDashboard(scope) {
-  const vendasEscopo = getScopeVendas(scope);
-  const vendasPeriodo = filtrarVendasPorPeriodo(vendasEscopo);
+  const vendasEscopo = getScopeVendas(scope);
+  const vendasPeriodo = filtrarVendasPorPeriodo(vendasEscopo);
 
-  let cfgRef = structuredClone(baseCfg);
-  if (scope !== "todos") {
-    const vend = byId(scope);
-    if (vend) cfgRef = vend.cfg || structuredClone(baseCfg);
-  }
+  let cfgRef = structuredClone(baseCfg);
+  if (scope !== "todos") {
+    const vend = byId(scope);
+    if (vend) cfgRef = vend.cfg || structuredClone(baseCfg);
+  }
+  
+  // 🚀 CORREÇÃO APLICADA: Agora o total só considera vendas ATIVAS DENTRO DO PERÍODO.
+  const total = totalVendido(
+    vendasPeriodo.filter((v) => v.status !== "cancelado")
+  );
+  
+  const aliq = aliquotaAplicavel(total, cfgRef.metas);
+  const comissaoTotal = total * aliq;
 
-  const total = totalVendido(
-    vendasEscopo.filter((v) => v.status !== "cancelado")
-  );
-  const aliq = aliquotaAplicavel(total, cfgRef.metas);
-  const comissaoTotal = total * aliq;
+  const fixo =
+    scope === "todos"
+      ? state.vendedores.reduce((acc, v) => acc + (Number(v.cfg?.fixo) || 0), 0)
+      : Number(byId(scope)?.cfg?.fixo) || baseCfg.fixo;
 
-  const fixo =
-    scope === "todos"
-      ? state.vendedores.reduce((acc, v) => acc + (Number(v.cfg?.fixo) || 0), 0)
-      : Number(byId(scope)?.cfg?.fixo) || baseCfg.fixo;
+  document.getElementById("kpi-vendas").textContent = fmtBRL(total);
+  document.getElementById("kpi-comissao").textContent = fmtBRL(comissaoTotal);
+  document.getElementById("kpi-fixo").textContent = fmtBRL(fixo);
+  let legenda = "no período atual";
+  if (state.periodo === "mensal") legenda = "no Mês Atual";
+  else if (state.periodo === "personalizado")
+    legenda = "no Período Personalizado";
+  document.getElementById("kpi-legenda-vendas").textContent = legenda;
+  document.getElementById("kpi-legenda-comissao").textContent = aliq
+    ? `alíquota ${pct(aliq)}`
+    : "sem meta atingida";
+  document.getElementById("kpi-legenda-fixo").textContent =
+    scope === "todos" ? "soma dos fixos" : "base mensal";
 
-  document.getElementById("kpi-vendas").textContent = fmtBRL(total);
-  document.getElementById("kpi-comissao").textContent = fmtBRL(comissaoTotal);
-  document.getElementById("kpi-fixo").textContent = fmtBRL(fixo);
-  let legenda = "no período atual";
-  if (state.periodo === "mensal") legenda = "no Mês Atual";
-  else if (state.periodo === "personalizado")
-    legenda = "no Período Personalizado";
-  document.getElementById("kpi-legenda-vendas").textContent = legenda;
-  document.getElementById("kpi-legenda-comissao").textContent = aliq
-    ? `alíquota ${pct(aliq)}`
-    : "sem meta atingida";
-  document.getElementById("kpi-legenda-fixo").textContent =
-    scope === "todos" ? "soma dos fixos" : "base mensal";
+  const metas = cfgRef.metas;
+  const bars = ["bar-m1", "bar-m2", "bar-m3"];
+  const tags = ["tag-m1", "tag-m2", "tag-m3"];
+  metas.forEach((m, i) => {
+    const perc =
+      m.alvo > 0 ? Math.min(100, Math.round((total / m.alvo) * 100)) : 0;
+    const bar = document.getElementById(bars[i]);
+    const tag = document.getElementById(tags[i]);
+    if (bar) bar.style.width = perc + "%";
+    if (tag) {
+      tag.textContent = perc + "%";
+      tag.className =
+        "tag " + (perc >= 100 ? "green" : perc >= 50 ? "amber" : "") || "tag";
+    }
+  });
 
-  const metas = cfgRef.metas;
-  const bars = ["bar-m1", "bar-m2", "bar-m3"];
-  const tags = ["tag-m1", "tag-m2", "tag-m3"];
-  metas.forEach((m, i) => {
-    const perc =
-      m.alvo > 0 ? Math.min(100, Math.round((total / m.alvo) * 100)) : 0;
-    const bar = document.getElementById(bars[i]);
-    const tag = document.getElementById(tags[i]);
-    if (bar) bar.style.width = perc + "%";
-    if (tag) {
-      tag.textContent = perc + "%";
-      tag.className =
-        "tag " + (perc >= 100 ? "green" : perc >= 50 ? "amber" : "") || "tag";
-    }
-  });
+  const ref = total;
+  const plenoPerc =
+    cfgRef.pleno > 0
+      ? Math.min(100, Math.round((ref / cfgRef.pleno) * 100))
+      : 0;
+  const seniorPerc =
+    cfgRef.senior > 0
+      ? Math.min(100, Math.round((ref / cfgRef.senior) * 100))
+      : 0;
+  document.getElementById("bar-pleno").style.width = plenoPerc + "%";
+  document.getElementById("tag-pleno").textContent = plenoPerc + "%";
+  document.getElementById("tag-pleno").className =
+    "tag " + (plenoPerc >= 100 ? "green" : plenoPerc >= 50 ? "amber" : "") ||
+    "tag";
+  document.getElementById("bar-senior").style.width = seniorPerc + "%";
+  document.getElementById("tag-senior").textContent = seniorPerc + "%";
+  document.getElementById("tag-senior").className =
+    "tag " + (seniorPerc >= 100 ? "green" : seniorPerc >= 50 ? "amber" : "") ||
+    "tag";
 
-  const ref = total;
-  const plenoPerc =
-    cfgRef.pleno > 0
-      ? Math.min(100, Math.round((ref / cfgRef.pleno) * 100))
-      : 0;
-  const seniorPerc =
-    cfgRef.senior > 0
-      ? Math.min(100, Math.round((ref / cfgRef.senior) * 100))
-      : 0;
-  document.getElementById("bar-pleno").style.width = plenoPerc + "%";
-  document.getElementById("tag-pleno").textContent = plenoPerc + "%";
-  document.getElementById("tag-pleno").className =
-    "tag " + (plenoPerc >= 100 ? "green" : plenoPerc >= 50 ? "amber" : "") ||
-    "tag";
-  document.getElementById("bar-senior").style.width = seniorPerc + "%";
-  document.getElementById("tag-senior").textContent = seniorPerc + "%";
-  document.getElementById("tag-senior").className =
-    "tag " + (seniorPerc >= 100 ? "green" : seniorPerc >= 50 ? "amber" : "") ||
-    "tag";
+  document.getElementById("aliquota").textContent = pct(aliq || 0);
+  document.getElementById("comissao").textContent = fmtBRL(comissaoTotal);
 
-  document.getElementById("aliquota").textContent = pct(aliq || 0);
-  document.getElementById("comissao").textContent = fmtBRL(comissaoTotal);
+  const totalFixo =
+    scope === "todos"
+      ? state.vendedores.reduce((acc, v) => acc + (Number(v.cfg?.fixo) || 0), 0)
+      : Number(byId(scope)?.cfg?.fixo) || 0;
+  document.getElementById("total").textContent = fmtBRL(
+    totalFixo + comissaoTotal
+  );
 
-  const totalFixo =
-    scope === "todos"
-      ? state.vendedores.reduce((acc, v) => acc + (Number(v.cfg?.fixo) || 0), 0)
-      : Number(byId(scope)?.cfg?.fixo) || 0;
-  document.getElementById("total").textContent = fmtBRL(
-    totalFixo + comissaoTotal
-  );
-
-  renderVendasTable(vendasEscopo);
-  renderPagamentosEEstornos(scope, cfgRef.metas);
+  renderVendasTable(vendasEscopo);
+  renderPagamentosEEstornos(scope, cfgRef.metas);
 }
 
 function bindCfgInputsFromActive() {
