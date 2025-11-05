@@ -690,7 +690,7 @@ function renderPagamentosEEstornos(scope, metasRef) {
   const intervaloCronograma = getCronogramaInterval();
   const vendasEscopo = getScopeVendas(scope);
   
-  const ALIQUOTA_BASE_PARA_CRONOGRAMA = metasRef[0].aliq;
+  const ALIQUOTA_BASE_PARA_CRONOGRAMA = metasRef[0].aliq; 
 
   let somaPagos = 0,
     somaInadimplentes = 0,
@@ -699,52 +699,59 @@ function renderPagamentosEEstornos(scope, metasRef) {
     somaEstornos = 0;
 
   const hoje = new Date();
-  const mesAtual = hoje.getMonth();
-  const anoAtual = hoje.getFullYear();
+
 
   const periodoKPI = getPeriodoInterval();
   let comissaoMesKPI = 0;
   let estornosMesKPI = 0;
-  
-  const vendasPorMes = {};
-  
-  vendasEscopo.forEach((v) => {
-      const dataVenda = parseISO(v.data); 
-      const mesRef = dataVenda.getFullYear() + "-" + (dataVenda.getMonth() + 1).toString().padStart(2, '0');
-      if (!vendasPorMes[mesRef]) {
-          vendasPorMes[mesRef] = 0;
-      }
-      vendasPorMes[mesRef] += Number(v.valor || 0);
-  });
-  
-  const metasBatidasPorMes = {};
-  Object.keys(vendasPorMes).forEach(mesRef => {
-      const totalVendido = vendasPorMes[mesRef];
-      metasBatidasPorMes[mesRef] = aliquotaAplicavel(totalVendido, metasRef);
-  });
+  
+  const vendasPorMes = {};
+  
+  vendasEscopo.forEach((v) => {
+      const dataVenda = parseISO(v.data); 
+      if (!dataVenda) return;
+      const mesRef = dataVenda.getFullYear() + "-" + (dataVenda.getMonth() + 1).toString().padStart(2, '0');
+      
+      if (!vendasPorMes[mesRef]) {
+          vendasPorMes[mesRef] = 0;
+      }
+
+      if (v.status !== "cancelado") {
+          vendasPorMes[mesRef] += Number(v.valor || 0);
+      }
+  });
+
+  const metasBatidasPorMes = {};
+  Object.keys(vendasPorMes).forEach(mesRef => {
+      const totalVendido = vendasPorMes[mesRef];
+
+      metasBatidasPorMes[mesRef] = aliquotaAplicavel(totalVendido, metasRef);
+  });
 
   vendasEscopo.forEach((v, vIdx) => {
-    let comissaoVenda = 0;
-    
-    comissaoVenda = Number(v.valor || 0) * ALIQUOTA_BASE_PARA_CRONOGRAMA;
+    const dataVenda = parseISO(v.data);
+    if (!dataVenda) return;
+    
+    const mesCriacaoVenda = dataVenda.getFullYear() + "-" + (dataVenda.getMonth() + 1).toString().padStart(2, '0');
+
+
+    const ALIQUOTA_REAL_VENDA = metasBatidasPorMes[mesCriacaoVenda] || 0;
+
+    let comissaoVenda = Number(v.valor || 0) * ALIQUOTA_REAL_VENDA;
     
     const cron = cronogramaComissaoVenda(v, comissaoVenda);
     const est = gerarEstornosPosCancelamento(v, cron);
-    
+    
     cron.forEach((p) => {
       const ehNoPeriodoKPI =
         p.data >= periodoKPI.inicio && p.data <= periodoKPI.fim;
-      
-      const dataVenda = parseISO(v.data); 
-      const mesCriacaoVenda = dataVenda.getFullYear() + "-" + (dataVenda.getMonth() + 1).toString().padStart(2, '0');
 
-      const metaBatida = metasBatidasPorMes[mesCriacaoVenda] >= ALIQUOTA_BASE_PARA_CRONOGRAMA;
-
+      const metaBatida = ALIQUOTA_REAL_VENDA > 0;
       if (ehNoPeriodoKPI && (p.status === "pago") && metaBatida) {
-        comissaoMesKPI += p.valor;
+        comissaoMesKPI += p.valor; 
       }
     });
-    
+    
     est.forEach((ei) => {
       const ehNoPeriodoKPI =
         ei.data >= periodoKPI.inicio && ei.data <= periodoKPI.fim;
@@ -760,30 +767,30 @@ function renderPagamentosEEstornos(scope, metasRef) {
         if (!ehNoPeriodoSelecionado) {
           return;
         }
-        
-        const dataVenda = parseISO(v.data);
-        const mesCriacaoVenda = dataVenda.getFullYear() + "-" + (dataVenda.getMonth() + 1).toString().padStart(2, '0');
-        const metaBatida = metasBatidasPorMes[mesCriacaoVenda] >= ALIQUOTA_BASE_PARA_CRONOGRAMA;
-        
-        let statusParaExibir = p.status;
-        let tagClass = '';
-        
-        if (!metaBatida) {
-            statusParaExibir = "Suspenso (Meta não batida)";
-            tagClass = "tag red";
-        } else {
-            if (p.status === "pago") {
-                somaPagos += p.valor;
-            } else if (p.status === "inadimplente") {
-                somaInadimplentes += p.valor;
-                tagClass = "tag amber";
-            } else if (p.status === "agendado") {
-                somaAgendados += p.valor;
-            } else if (p.status === "cancelado") {
-                somaCancelados += p.valor;
-                tagClass = "tag red";
-            }
-        }
+
+        const metaBatida = ALIQUOTA_REAL_VENDA > 0;
+        
+        let statusParaExibir = p.status;
+        let tagClass = '';
+        
+        if (!metaBatida) {
+            statusParaExibir = "Suspenso (Meta não batida)";
+            tagClass = "tag red";
+        } else {
+            if (p.status === "pago") {
+                somaPagos += p.valor;
+                tagClass = "tag green";
+            } else if (p.status === "inadimplente") {
+                somaInadimplentes += p.valor;
+                tagClass = "tag amber";
+            } else if (p.status === "agendado") {
+                somaAgendados += p.valor;
+                tagClass = ""; 
+            } else if (p.status === "cancelado") {
+                somaCancelados += p.valor;
+                tagClass = "tag red";
+            }
+        }
 
         const statusSelect = `
             <select class="status-select" data-venda-idx="${vIdx}" data-parcela-idx="${i}">
@@ -801,8 +808,8 @@ function renderPagamentosEEstornos(scope, metasRef) {
         }>Cancelado</option>
             </select>
         `;
-        
-        const statusCel = metaBatida ? statusSelect : `<span class="${tagClass}">${statusParaExibir}</span>`;
+        
+        const statusCel = metaBatida ? statusSelect : `<span class="${tagClass}">${statusParaExibir}</span>`;
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -914,8 +921,7 @@ function renderDashboard(scope) {
     const vend = byId(scope);
     if (vend) cfgRef = vend.cfg || structuredClone(baseCfg);
   }
-  
-  // 🚀 CORREÇÃO APLICADA: Agora o total só considera vendas ATIVAS DENTRO DO PERÍODO.
+
   const total = totalVendido(
     vendasPeriodo.filter((v) => v.status !== "cancelado")
   );
@@ -927,7 +933,6 @@ function renderDashboard(scope) {
     scope === "todos"
       ? state.vendedores.reduce((acc, v) => acc + (Number(v.cfg?.fixo) || 0), 0)
       : Number(byId(scope)?.cfg?.fixo) || baseCfg.fixo;
-
   document.getElementById("kpi-vendas").textContent = fmtBRL(total);
   document.getElementById("kpi-comissao").textContent = fmtBRL(comissaoTotal);
   document.getElementById("kpi-fixo").textContent = fmtBRL(fixo);
