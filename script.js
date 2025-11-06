@@ -843,16 +843,16 @@ function renderPagamentosEEstornos(scope, metasRef) {
   if (lblEInad) lblEInad.textContent = fmtBRL(somaInadimplentes);
   if (lblEAgend) lblEAgend.textContent = fmtBRL(somaAgendados);
   if (lblECanc) lblECanc.textContent = fmtBRL(somaCancelados);
-  if (lblEEst) lblEEst.textContent = fmtBRL(somaEstornos);
+  if (lblEEst) lblEEst.textContent = fmtBRL(estornosMesKPI);
   if (lblELiq)
     lblELiq.textContent = fmtBRL(
-      Math.max(0, somaPagos + somaAgendados - somaEstornos)
+      Math.max(0, somaPagos + somaAgendados - estornosMesKPI)
     );
   if (lblNext) lblNext.textContent = proximo10.toLocaleDateString("pt-BR");
-  if (lblEstTotal) lblEstTotal.textContent = fmtBRL(somaEstornos);
+  if (lblEstTotal) lblEstTotal.textContent = fmtBRL(somaEstornosExibidos);
   document.getElementById("comissao-mes").textContent = fmtBRL(comissaoMesKPI);
   document.getElementById("estornos-mes").textContent =
-    fmtBRL(somaEstornosExibidos);
+    fmtBRL(estornosMesKPI);
 
   let salarioFixo = 0;
   if (scope === "todos")
