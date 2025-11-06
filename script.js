@@ -31,6 +31,9 @@ const state = {
   filtroCronograma: null,
   dataInicioCronograma: null,
   dataFimCronograma: null,
+  filtroEstorno: "personalizado",
+  dataInicioEstorno: null,
+  dataFimEstorno: null,
 };
 
 function save() {
@@ -677,12 +680,14 @@ function renderPagamentosEEstornos(scope, metasRef) {
   if (tbEst) tbEst.innerHTML = "";
 
   const intervaloCronograma = getCronogramaInterval();
+  const intervaloEstornos = getEstornoInterval();
   const vendasEscopo = getScopeVendas(scope);
   let somaPagos = 0,
     somaInadimplentes = 0,
     somaAgendados = 0,
     somaCancelados = 0,
     somaEstornos = 0;
+  let somaEstornosExibidos = 0;
 
   const periodoKPI = getPeriodoInterval();
   let comissaoMesKPI = 0;
@@ -806,10 +811,10 @@ function renderPagamentosEEstornos(scope, metasRef) {
     if (tbEst && est.length) {
       est.forEach((ei) => {
         const ehNoPeriodoSelecionado =
-          ei.data >= intervaloCronograma.inicio &&
-          ei.data < intervaloCronograma.fim;
+          ei.data >= intervaloEstornos.inicio &&
+          ei.data < intervaloEstornos.fim;
         if (!ehNoPeriodoSelecionado) return;
-        somaEstornos += ei.valor;
+        somaEstornosExibidos += ei.valor;
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${ei.cliente || v.cliente || "-"}</td>
@@ -846,7 +851,8 @@ function renderPagamentosEEstornos(scope, metasRef) {
   if (lblNext) lblNext.textContent = proximo10.toLocaleDateString("pt-BR");
   if (lblEstTotal) lblEstTotal.textContent = fmtBRL(somaEstornos);
   document.getElementById("comissao-mes").textContent = fmtBRL(comissaoMesKPI);
-  document.getElementById("estornos-mes").textContent = fmtBRL(estornosMesKPI);
+  document.getElementById("estornos-mes").textContent =
+    fmtBRL(somaEstornosExibidos);
 
   let salarioFixo = 0;
   if (scope === "todos")
@@ -1061,6 +1067,81 @@ function getClientesInadimplentes() {
   });
   return inadimplentes;
 }
+function getEstornoInterval() {
+  if (
+    state.filtroEstorno === "personalizado" &&
+    state.dataInicioEstorno &&
+    state.dataFimEstorno
+  ) {
+    const inicio = parseISO(state.dataInicioEstorno);
+    const fimPersonalizado = new Date(parseISO(state.dataFimEstorno));
+
+    fimPersonalizado.setDate(fimPersonalizado.getDate() + 1);
+
+    if (inicio && fimPersonalizado) {
+      return { inicio, fim: fimPersonalizado };
+    }
+  }
+
+  const hoje = new Date();
+  const inicioPadrao = new Date(
+    hoje.getFullYear(),
+    hoje.getMonth(),
+    1,
+    0,
+    0,
+    0,
+    0
+  );
+  const fimPadrao = new Date(
+    hoje.getFullYear(),
+    hoje.getMonth() + 1,
+    1,
+    0,
+    0,
+    0,
+    0
+  );
+
+  state.filtroEstorno = "mensal";
+  return { inicio: inicioPadrao, fim: fimPadrao };
+}
+
+function setupCustomEstornoEvents() {
+  const dataInicioInput = document.getElementById("data-inicio-estorno");
+  const dataFimInput = document.getElementById("data-fim-estorno");
+  const aplicarBtn = document.getElementById("aplicar-filtro-estorno");
+
+  if (!aplicarBtn || !dataInicioInput || !dataFimInput) {
+    return;
+  }
+
+  aplicarBtn.onclick = () => {
+    const dataInicio = dataInicioInput.value;
+    const dataFim = dataFimInput.value;
+
+    if (!dataInicio || !dataFim) {
+      alert(
+        "Por favor, selecione as datas de início e fim para o filtro de estornos."
+      );
+      return;
+    }
+
+    state.filtroEstorno = "personalizado";
+    state.dataInicioEstorno = dataInicio;
+    state.dataFimEstorno = dataFim;
+
+    save();
+    calcular(getScopeFromUI());
+  };
+
+  if (state.dataInicioEstorno) {
+    dataInicioInput.value = state.dataInicioEstorno;
+  }
+  if (state.dataFimEstorno) {
+    dataFimInput.value = state.dataFimEstorno;
+  }
+}
 
 function setupInadimplenciaView() {
   const selectInadimplente = document.getElementById("select-inadimplente");
@@ -1255,6 +1336,7 @@ function attachUIEvents() {
   });
 
   setupCustomCronogramaEvents();
+  setupCustomEstornoEvents();
 
   document.getElementById("btn-add").addEventListener("click", () => {
     const vend = byId(state.ativo);

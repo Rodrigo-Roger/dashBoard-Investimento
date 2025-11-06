@@ -251,7 +251,18 @@
           <p class="muted">Cancelamento com menos de 5 parcelas pagas gera estorno das comissões já pagas, mês a mês. Se o cliente pagou 5+, não há estorno e a 6ª é paga normalmente.</p>
         </div>
         <div class="card" style="margin-top:18px">
-          <h3>Estornos Automáticos</h3>
+        <div class="filter-group" style="display: flex; justify-content: space-between; align-items: center;">
+            <h3>Detalhamento dos Estornos</h3>
+            <div id="estorno-filter-fields" style="display: flex; align-items: center; gap: 15px;">
+                <label for="data-inicio-estorno">Início:</label>
+                <input type="date" id="data-inicio-estorno" />
+                
+                <label for="data-fim-estorno">Fim:</label>
+                <input type="date" id="data-fim-estorno" />
+                
+                <button id="aplicar-filtro-estorno" class="btn-aplicar">Aplicar</button>
+            </div>
+        </div>
           <table>
             <thead>
               <div id="estorno-actions-container" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;">
