@@ -129,7 +129,6 @@ function filtrarVendasPorPeriodo(vendas) {
   if (!inicio || !fim) return vendas;
   return vendas.filter((v) => {
     const d = parseISO(v.data);
-    if (v.status === "cancelado") return true;
     return d && d >= inicio && d <= fim;
   });
 }
@@ -562,7 +561,6 @@ function setupCustomCronogramaEvents() {
     calcular(getScopeFromUI());
   };
 
-  // Pré-preenche (se houver datas salvas ao carregar)
   if (state.dataInicioCronograma) {
     dataInicioInput.value = state.dataInicioCronograma;
   }
@@ -606,70 +604,62 @@ function renderTopDropdowns() {
 }
 
 function renderVendasTable(vendasEscopo) {
-  const tbody = document.getElementById("tbody-vendas");
-  if (!tbody) return;
-  tbody.innerHTML = "";
+  const tbody = document.getElementById("tbody-vendas");
+  if (!tbody) return;
+  tbody.innerHTML = "";
 
-  const vendasAtivasPeriodo = vendasEscopo.filter((v) => v.status === "ativo");
-  const vendasCanceladas = vendasEscopo.filter((v) => v.status === "cancelado");
-  const vendasParaExibir = [
-    ...filtrarVendasPorPeriodo(vendasAtivasPeriodo),
-    ...vendasCanceladas,
-  ];
-  vendasParaExibir.forEach((v, idx) => {
-    const tr = document.createElement("tr");
-    const tag =
-      v.status === "cancelado"
-        ? `<span class="tag red">CANCELADO ${
-            v.cancelamento ? "(" + v.cancelamento + ")" : ""
-          }</span>`
-        : '<span class="tag green">Ativo</span>';
-    tr.innerHTML = `
+  const vendasParaExibir = filtrarVendasPorPeriodo(vendasEscopo); 
+  
+  vendasParaExibir.forEach((v, idx) => {
+    const tr = document.createElement("tr");
+    const tag =
+      v.status === "cancelado"
+        ? `<span class="tag red">CANCELADO ${
+            v.cancelamento ? "(" + v.cancelamento + ")" : ""
+          }</span>`
+        : '<span class="tag green">Ativo</span>';
+
+    const uniqueId = `${v._owner}_${v.cliente}_${v.data}_${v.valor}`;
+    
+    tr.innerHTML = `
       <td>${v.cliente || "-"}</td>
       <td>${v.data || "-"}</td>
       <td><b>${fmtBRL(Number(v.valor || 0))}</b></td>
       <td>${tag}</td>
-      <td style="text-align:right"><button class="btn gold" data-del="${idx}">Excluir</button></td>
+      <td style="text-align:right"><button class="btn gold" data-unique-id="${uniqueId}">Excluir</button></td>
     `;
-    tbody.appendChild(tr);
-  });
+    tbody.appendChild(tr);
+  });
 
-  tbody.querySelectorAll("button[data-del]").forEach((btn, visualIdx) => {
-    btn.addEventListener("click", () => {
-      const scope = getScopeFromUI();
-      if (scope === "todos") {
-        alert(
-          "Troque o filtro para um vendedor específico para excluir vendas."
-        );
-        return;
-      }
-      const vend = byId(scope);
-      if (!vend) return;
-      const vendasAtivasPeriodo = vendasEscopo.filter(
-        (v) => v.status === "ativo"
-      );
-      const vendasCanceladas = vendasEscopo.filter(
-        (v) => v.status === "cancelado"
-      );
-      const vendasVisuais = [
-        ...filtrarVendasPorPeriodo(vendasAtivasPeriodo),
-        ...vendasCanceladas,
-      ];
-      const vendaVisual = vendasVisuais[visualIdx];
-      if (!vendaVisual) return;
-      const idxReal = vend.vendas.findIndex(
-        (x) =>
-          x.cliente === vendaVisual.cliente &&
-          x.data === vendaVisual.data &&
-          x.valor === vendaVisual.valor
-      );
-      if (idxReal >= 0) {
-        vend.vendas.splice(idxReal, 1);
-      }
-      save();
-      calcular(scope);
-    });
-  });
+  tbody.querySelectorAll("button[data-unique-id]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const scope = getScopeFromUI();
+      if (scope === "todos") {
+        alert(
+          "Troque o filtro para um vendedor específico para excluir vendas."
+        );
+        return;
+      }
+      const vend = byId(scope);
+      if (!vend) return;
+      const uniqueId = e.currentTarget.dataset.uniqueId;
+      const [ownerId, cliente, data, valorStr] = uniqueId.split('_');
+      const valor = Number(valorStr);
+
+      const idxReal = vend.vendas.findIndex(
+        (x) =>
+          x.cliente === cliente &&
+          x.data === data &&
+          Number(x.valor) === valor
+      );
+      
+      if (idxReal >= 0) {
+        vend.vendas.splice(idxReal, 1);
+      }
+      save();
+      calcular(scope);
+    });
+  });
 }
 
 function renderPagamentosEEstornos(scope, metasRef) {
@@ -690,7 +680,6 @@ function renderPagamentosEEstornos(scope, metasRef) {
   const intervaloCronograma = getCronogramaInterval();
   const vendasEscopo = getScopeVendas(scope);
   
-  const ALIQUOTA_BASE_PARA_CRONOGRAMA = metasRef[0].aliq; 
 
   let somaPagos = 0,
     somaInadimplentes = 0,
@@ -698,14 +687,10 @@ function renderPagamentosEEstornos(scope, metasRef) {
     somaCancelados = 0,
     somaEstornos = 0;
 
-  const hoje = new Date();
-
-
   const periodoKPI = getPeriodoInterval();
   let comissaoMesKPI = 0;
   let estornosMesKPI = 0;
   
-  // 1. CALCULA O TOTAL VENDIDO POR MÊS (INCLUINDO CANCELADAS)
   const vendasPorMes = {};
   
   vendasEscopo.forEach((v) => {
@@ -716,11 +701,10 @@ function renderPagamentosEEstornos(scope, metasRef) {
       if (!vendasPorMes[mesRef]) {
           vendasPorMes[mesRef] = 0;
       }
-      // Regra: Vendas canceladas SÃO INCLUÍDAS no total vendido para a meta
+
       vendasPorMes[mesRef] += Number(v.valor || 0);
   });
 
-  // 2. CALCULA A ALÍQUOTA REAL ATINGIDA PARA CADA MÊS DE VENDA
   const metasBatidasPorMes = {};
   Object.keys(vendasPorMes).forEach(mesRef => {
       const totalVendido = vendasPorMes[mesRef];
@@ -728,20 +712,17 @@ function renderPagamentosEEstornos(scope, metasRef) {
       metasBatidasPorMes[mesRef] = aliquotaAplicavel(totalVendido, metasRef);
   });
 
-  // 3. PROCESSA VENDAS E GERA CRONOGRAMA COM ALÍQUOTA CORRETA
   vendasEscopo.forEach((v, vIdx) => {
     const dataVenda = parseISO(v.data);
     if (!dataVenda) return;
     
     const mesCriacaoVenda = dataVenda.getFullYear() + "-" + (dataVenda.getMonth() + 1).toString().padStart(2, '0');
 
-    // PEGA A ALÍQUOTA REAL DO MÊS DE CRIAÇÃO DA VENDA
     const ALIQUOTA_REAL_VENDA = metasBatidasPorMes[mesCriacaoVenda] || 0;
 
-    // CALCULA A COMISSÃO USANDO A ALÍQUOTA REAL
+
     let comissaoVenda = Number(v.valor || 0) * ALIQUOTA_REAL_VENDA;
     
-    // Gera o cronograma com o valor de comissão CORRIGIDO
     const cron = cronogramaComissaoVenda(v, comissaoVenda);
     const est = gerarEstornosPosCancelamento(v, cron);
     
@@ -749,7 +730,6 @@ function renderPagamentosEEstornos(scope, metasRef) {
       const ehNoPeriodoKPI =
         p.data >= periodoKPI.inicio && p.data <= periodoKPI.fim;
 
-      // A comissão é devida se a alíquota real for maior que zero
       const metaBatida = ALIQUOTA_REAL_VENDA > 0;
       if (ehNoPeriodoKPI && (p.status === "pago") && metaBatida) {
         comissaoMesKPI += p.valor; 
@@ -886,37 +866,52 @@ function renderPagamentosEEstornos(scope, metasRef) {
 
   document.getElementById("salario-fixo").textContent = fmtBRL(salarioFixo);
   document.getElementById("salario-final").textContent = fmtBRL(salarioFinal);
-  
-  if (tbPay) {
+
+if (tbPay) {
     tbPay.querySelectorAll(".status-select").forEach((select) => {
       select.addEventListener("change", (e) => {
         const novoStatus = e.target.value;
         const parcelaIdx = parseInt(e.target.dataset.parcelaIdx);
         const visualIdx = parseInt(e.target.dataset.vendaIdx);
+
         const vendaAfetada = vendasEscopo[visualIdx];
         if (!vendaAfetada) return;
+        
         const vendOwner = byId(vendaAfetada._owner);
+        if (!vendOwner) return;
+
         const realIndex = vendOwner.vendas.findIndex(
           (v) =>
             v.cliente === vendaAfetada.cliente && v.data === vendaAfetada.data
         );
+        
         if (realIndex >= 0) {
           const vendaNoState = vendOwner.vendas[realIndex];
+
+            const dataVenda = parseISO(vendaNoState.data);
+            const mesCriacaoVenda = dataVenda.getFullYear() + "-" + (dataVenda.getMonth() + 1).toString().padStart(2, '0');
+            const totalVendidoMes = vendasPorMes[mesCriacaoVenda] || 0; 
+            const aliquotaRealAplicavel = aliquotaAplicavel(totalVendidoMes, metasRef);
+
+            const comissaoDeReferencia = Number(vendaNoState.valor || 0) * aliquotaRealAplicavel; 
+            
           if (!vendaNoState.cronograma_manual) {
-            const comissaoDeReferencia = Number(vendaNoState.valor || 0) * ALIQUOTA_REAL_VENDA; // Correção necessária aqui (fora do escopo inicial, mas boa prática)
+        
             const cronAuto = cronogramaComissaoVenda(vendaNoState, comissaoDeReferencia);
+           
             vendaNoState.cronograma_manual = cronAuto.map((p) =>
               p.status === "suspenso" ? "inadimplente" : p.status
             );
           }
+
           vendaNoState.cronograma_manual[parcelaIdx] = novoStatus;
+            
           save();
-          calcular(getScopeFromUI());
+          calcular(getScopeFromUI()); 
         }
       });
     });
-  }
-}
+  }}
 function renderDashboard(scope) {
   const vendasEscopo = getScopeVendas(scope);
   const vendasPeriodo = filtrarVendasPorPeriodo(vendasEscopo);
