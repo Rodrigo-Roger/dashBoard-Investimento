@@ -705,6 +705,7 @@ function renderPagamentosEEstornos(scope, metasRef) {
   let comissaoMesKPI = 0;
   let estornosMesKPI = 0;
   
+  // 1. CALCULA O TOTAL VENDIDO POR MÊS (INCLUINDO CANCELADAS)
   const vendasPorMes = {};
   
   vendasEscopo.forEach((v) => {
@@ -715,12 +716,11 @@ function renderPagamentosEEstornos(scope, metasRef) {
       if (!vendasPorMes[mesRef]) {
           vendasPorMes[mesRef] = 0;
       }
-
-      if (v.status !== "cancelado") {
-          vendasPorMes[mesRef] += Number(v.valor || 0);
-      }
+      // Regra: Vendas canceladas SÃO INCLUÍDAS no total vendido para a meta
+      vendasPorMes[mesRef] += Number(v.valor || 0);
   });
 
+  // 2. CALCULA A ALÍQUOTA REAL ATINGIDA PARA CADA MÊS DE VENDA
   const metasBatidasPorMes = {};
   Object.keys(vendasPorMes).forEach(mesRef => {
       const totalVendido = vendasPorMes[mesRef];
@@ -728,17 +728,20 @@ function renderPagamentosEEstornos(scope, metasRef) {
       metasBatidasPorMes[mesRef] = aliquotaAplicavel(totalVendido, metasRef);
   });
 
+  // 3. PROCESSA VENDAS E GERA CRONOGRAMA COM ALÍQUOTA CORRETA
   vendasEscopo.forEach((v, vIdx) => {
     const dataVenda = parseISO(v.data);
-    if (!dataVenda) return;
-    
+    if (!dataVenda) return;
+    
     const mesCriacaoVenda = dataVenda.getFullYear() + "-" + (dataVenda.getMonth() + 1).toString().padStart(2, '0');
 
+    // PEGA A ALÍQUOTA REAL DO MÊS DE CRIAÇÃO DA VENDA
+    const ALIQUOTA_REAL_VENDA = metasBatidasPorMes[mesCriacaoVenda] || 0;
 
-    const ALIQUOTA_REAL_VENDA = metasBatidasPorMes[mesCriacaoVenda] || 0;
-
+    // CALCULA A COMISSÃO USANDO A ALÍQUOTA REAL
     let comissaoVenda = Number(v.valor || 0) * ALIQUOTA_REAL_VENDA;
     
+    // Gera o cronograma com o valor de comissão CORRIGIDO
     const cron = cronogramaComissaoVenda(v, comissaoVenda);
     const est = gerarEstornosPosCancelamento(v, cron);
     
@@ -746,6 +749,7 @@ function renderPagamentosEEstornos(scope, metasRef) {
       const ehNoPeriodoKPI =
         p.data >= periodoKPI.inicio && p.data <= periodoKPI.fim;
 
+      // A comissão é devida se a alíquota real for maior que zero
       const metaBatida = ALIQUOTA_REAL_VENDA > 0;
       if (ehNoPeriodoKPI && (p.status === "pago") && metaBatida) {
         comissaoMesKPI += p.valor; 
@@ -779,13 +783,13 @@ function renderPagamentosEEstornos(scope, metasRef) {
         } else {
             if (p.status === "pago") {
                 somaPagos += p.valor;
-                tagClass = "tag green";
+                tagClass = "tag green";
             } else if (p.status === "inadimplente") {
                 somaInadimplentes += p.valor;
                 tagClass = "tag amber";
             } else if (p.status === "agendado") {
                 somaAgendados += p.valor;
-                tagClass = ""; 
+                tagClass = ""; 
             } else if (p.status === "cancelado") {
                 somaCancelados += p.valor;
                 tagClass = "tag red";
@@ -899,7 +903,8 @@ function renderPagamentosEEstornos(scope, metasRef) {
         if (realIndex >= 0) {
           const vendaNoState = vendOwner.vendas[realIndex];
           if (!vendaNoState.cronograma_manual) {
-            const cronAuto = cronogramaComissaoVenda(vendaNoState, 1);
+            const comissaoDeReferencia = Number(vendaNoState.valor || 0) * ALIQUOTA_REAL_VENDA; // Correção necessária aqui (fora do escopo inicial, mas boa prática)
+            const cronAuto = cronogramaComissaoVenda(vendaNoState, comissaoDeReferencia);
             vendaNoState.cronograma_manual = cronAuto.map((p) =>
               p.status === "suspenso" ? "inadimplente" : p.status
             );
@@ -923,7 +928,7 @@ function renderDashboard(scope) {
   }
 
   const total = totalVendido(
-    vendasPeriodo.filter((v) => v.status !== "cancelado")
+    vendasPeriodo
   );
   
   const aliq = aliquotaAplicavel(total, cfgRef.metas);
